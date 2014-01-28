@@ -292,7 +292,7 @@ def validate_status_codes(dictionary):
 def init_dict_using_model(dictionary, model):
     """set unset values from model dictionary"""
     for key, value in model.items():
-        if key not in dictionary or not dictionary[key]:
+        if key not in dictionary or (not dictionary[key] and not isinstance(dictionary[key], (int, float, complex))):
             dictionary[key] = value
         if isinstance(value, dict):
             init_dict_using_model(dictionary[key], value)
