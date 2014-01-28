@@ -5,7 +5,7 @@ name = 'buildhck'
 source = 'git+git://github.com/Cloudef/buildhck.git#branch=master'
 prepare = []
 build = ['python3 -m py_compile "$srcdir/buildhck.py"',
-         'python3 -m py_compile "$srcdir/client.py"']
+         'python3 -m py_compile "$srcdir/client/client.py"']
 test = ['python3 "$srcdir/test.py"']
 package = []
 
