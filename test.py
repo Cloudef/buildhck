@@ -4,7 +4,7 @@
 
 SERVER = 'http://localhost:9001'
 
-import os, time, json, unittest, subprocess
+import os, sys, time, json, unittest, subprocess
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -135,8 +135,9 @@ if __name__ == '__main__':
     PID = os.fork()
     if PID:
         time.sleep(1)
-        unittest.main(exit=False)
+        RET = unittest.main(exit=False)
         os.kill(PID, 2)
+        sys.exit(os.EX_OK if RET.result.wasSuccessful() else 1)
     else:
         try:
             FLE = open(os.devnull, 'w')
