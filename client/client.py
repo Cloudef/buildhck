@@ -2,7 +2,7 @@
 # pylint: disable=C0301, R0913, R0914
 """buildhck python client"""
 
-import os, json, subprocess
+import os, json, shlex, subprocess
 from subprocess import Popen, PIPE
 from base64 import b64encode
 
@@ -26,19 +26,27 @@ def s_mkdir(sdir):
 
 def expand_cmd(cmd, replace):
     """expand commands from recipies"""
-    cmd_list = cmd.split()
+    cmd_list = shlex.split(cmd)
     for i, item in enumerate(cmd_list):
         for rep in replace:
             if rep in item:
-                cmd_list[i].replace(item, replace[rep])
+                cmd_list[i] = item.replace(rep, replace[rep])
+    print(cmd_list)
     return cmd_list
 
 def run_cmd_catch_output(cmd):
     """run command and catch output and return value"""
     log = []
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-    while proc.poll() is None:
-        log.append(proc.stdout.readline())
+    stdout, stderr = proc.communicate()
+    if stderr:
+        log.append(b':: stderr\n')
+        log.append(stderr)
+    if stdout:
+        if stderr:
+            log.append("\n")
+        log.append(b':: stdout\n')
+        log.append(stdout)
     return {'code': proc.returncode, 'output': log}
 
 def run_cmd_list_catch_output(cmd_list, result, expand):
@@ -47,9 +55,11 @@ def run_cmd_list_catch_output(cmd_list, result, expand):
     for cmd in cmd_list:
         expanded = expand_cmd(cmd, expand)
         ret = run_cmd_catch_output(expanded)
-        if ret['code'] != 0:
-            return False
         log.extend(ret['output'])
+        if ret['code'] != os.EX_OK:
+            result['status'] = 0
+            result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
+            return False
     result['status'] = 1 if cmd_list else -1
     result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
     return True
@@ -62,19 +72,19 @@ def build(recipe, srcdir, builddir, pkgdir, result):
     """build project"""
     return run_cmd_list_catch_output(recipe.build, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
-def test(recipe, builddir, result):
+def test(recipe, srcdir, builddir, result):
     """test project"""
-    return run_cmd_list_catch_output(recipe.test, result, {'$builddir': builddir})
+    return run_cmd_list_catch_output(recipe.test, result, {'$srcdir': srcdir, '$builddir': builddir})
 
-def package(recipe, builddir, pkgdir, result):
+def package(recipe, srcdir, builddir, pkgdir, result):
     """package project"""
-    return run_cmd_list_catch_output(recipe.package, result, {'$builddir': builddir, '$pkgdir': pkgdir})
+    return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 def clone_git(srcdir, url, branch, result):
     """clone source using git"""
     def git(*args):
         """git wrapper"""
-        return subprocess.check_call(['git'] + list(args)) == 0
+        return subprocess.check_call(['git'] + list(args)) == os.EX_OK
     def git2(*args):
         """git wrapper2"""
         return subprocess.check_output(['git'] + list(args))
@@ -148,12 +158,12 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     if not build(recipe, srcdir, builddir, pkgdir, result['build']):
         return True
 
-    if not test(recipe, builddir, result['test']):
+    if not test(recipe, srcdir, builddir, result['test']):
         return True
 
     s_mkdir(pkgdir)
     os.chdir(builddir)
-    if not package(recipe, builddir, pkgdir, result['package']):
+    if not package(recipe, srcdir, builddir, pkgdir, result['package']):
         return True
 
     return True
