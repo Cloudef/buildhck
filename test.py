@@ -132,6 +132,9 @@ class TestBuildFunctions(unittest.TestCase):
         delete_build('unittest') # don't care about return
 
 if __name__ == '__main__':
+    STARTDIR = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(STARTDIR)
+
     PID = os.fork()
     if PID:
         time.sleep(1)
