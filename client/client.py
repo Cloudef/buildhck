@@ -28,8 +28,9 @@ def expand_cmd(cmd, replace):
     """expand commands from recipies"""
     cmd_list = cmd.split()
     for i, item in enumerate(cmd_list):
-        if item in replace:
-            cmd_list[i] = replace[item]
+        for rep in replace:
+            if rep in item:
+                cmd_list[i].replace(item, replace[rep])
     return cmd_list
 
 def run_cmd_catch_output(cmd):
