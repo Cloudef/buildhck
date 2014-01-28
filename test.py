@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# pylint: disable=C0301, R0904, R0201
+# pylint: disable=C0301, R0904, R0201, W0212
 """unittests for buildhck"""
 
 SERVER = 'http://localhost:9001'
 
-import json, unittest
+import os, time, json, unittest, subprocess
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -132,6 +132,19 @@ class TestBuildFunctions(unittest.TestCase):
         delete_build('unittest') # don't care about return
 
 if __name__ == '__main__':
-    unittest.main()
+    PID = os.fork()
+    if PID:
+        time.sleep(1)
+        unittest.main(exit=False)
+        os.kill(PID, 2)
+    else:
+        try:
+            FLE = open(os.devnull, 'w')
+            subprocess.call(['python3', 'buildhck.py'], stdout=FLE, stderr=FLE)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            FLE.close()
+        os._exit(os.EX_OK)
 
 #  vim: set ts=8 sw=4 tw=0 :
