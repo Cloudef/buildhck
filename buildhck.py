@@ -16,7 +16,7 @@ BUILDJSONMDL = {'client': 'unknown client', 'commit': 'unknown commit', 'descrip
                 'build': {'status': -1, 'log': ''},
                 'test': {'status': -1, 'log': ''},
                 'package': {'status': -1, 'log': '', 'zip': ''},
-                'github': {}} # non empty dict == github posthook
+                'github': {'user': '', 'repo': ''}}
 
 FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
 
@@ -189,11 +189,11 @@ def handle_github(project, branch, system, metadata):
 
 def check_github_posthook(data, metadata):
     """check if github posthook should be used"""
-    if not data['github']:
+    if not data['github'] or not data['github']['user'] or not data['github']['repo']:
         return False
 
     issueid = None
-    if metadata['github'] and 'issueid' in metadata['github']:
+    if 'github' in metadata and metadata['github'] and 'issueid' in metadata['github']:
         issueid = metadata['github']['issueid']
 
     metadata['github'] = {'user': data['github']['user'],
