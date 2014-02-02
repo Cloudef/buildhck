@@ -2,8 +2,7 @@
 # pylint: disable=C0301, R0913, R0914
 """buildhck python client"""
 
-import os, json, shlex, subprocess
-from subprocess import Popen, PIPE
+import os, json, shlex
 from base64 import b64encode
 
 SETTINGS = {}
@@ -37,17 +36,22 @@ def expand_cmd(cmd, replace):
 
 def run_cmd_catch_output(cmd):
     """run command and catch output and return value"""
-    log = []
+    from select import select
+    from subprocess import Popen, PIPE
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
-    stdout, stderr = proc.communicate()
-    if stderr:
-        log.append(b':: stderr\n')
-        log.append(stderr)
-    if stdout:
-        if stderr:
-            log.append(b'\n')
-        log.append(b':: stdout\n')
-        log.append(stdout)
+
+    log = []
+    while True:
+        reads = [proc.stdout.fileno(), proc.stderr.fileno()]
+        ret = select(reads, [], [])
+        for fdi in ret[0]:
+            if fdi == proc.stdout.fileno():
+                log.append(proc.stdout.readline())
+            elif fdi == proc.stderr.fileno():
+                log.append(proc.stderr.readline())
+        if proc.poll() != None:
+            break
+
     return {'code': proc.returncode, 'output': log}
 
 def run_cmd_list_catch_output(cmd_list, result, expand):
@@ -56,6 +60,9 @@ def run_cmd_list_catch_output(cmd_list, result, expand):
     for cmd in cmd_list:
         expanded = expand_cmd(cmd, expand)
         ret = run_cmd_catch_output(expanded)
+        if log:
+            log.append(b'\n')
+        log.append('>> {}:\n'.format(expanded).encode('UTF-8'))
         log.extend(ret['output'])
         if ret['code'] != os.EX_OK:
             result['status'] = 0
@@ -85,10 +92,13 @@ def clone_git(srcdir, url, branch, result):
     """clone source using git"""
     def git(*args):
         """git wrapper"""
-        return subprocess.check_call(['git'] + list(args)) == os.EX_OK
+        from subprocess import check_call
+        return check_call(['git'] + list(args)) == os.EX_OK
+
     def git2(*args):
         """git wrapper2"""
-        return subprocess.check_output(['git'] + list(args))
+        from subprocess import check_output
+        return check_output(['git'] + list(args))
 
     if not branch:
         branch = 'master'
