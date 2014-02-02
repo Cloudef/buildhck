@@ -9,6 +9,8 @@ import os, re, bz2, json
 
 SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
+SETTINGS['github'] = {}
+SETTINGS['auth'] = {}
 
 STUSKEYS = ['build', 'test', 'package']
 
@@ -50,12 +52,10 @@ ISSUEBDY = '![platform icon]({}) **{}** on **{}**\n' \
            '{} UTC\n' \
            '[build]({}) {} [tests]({}) {} [package]({}) {}'
 
-AUTH = {}
-GITHUB = ''
 try:
     import authorization
-    AUTH = authorization.key
-    GITHUB = authorization.github
+    SETTINGS['auth'] = authorization.key
+    SETTINGS['github'] = authorization.github
 except ImportError as exc:
     print("Authorization module was not loaded!")
 
@@ -73,21 +73,22 @@ def is_authenticated_for_project(project):
     validate_build(project)
 
     # allow if our dict is empty
-    if not AUTH:
+    if not SETTINGS['auth']:
         return True
 
     key = ''
+    auth = SETTINGS['auth']
     if 'Authorization' in request.headers:
         key = request.headers['Authorization']
 
     # allow if key matches the one in dict
     # or the key in dict is empty for the project
-    if project in AUTH and (AUTH[project] == key or not AUTH[project]):
+    if project in auth and (auth[project] == key or not auth[project]):
         return True
 
     # allow if key matches public key, and
     # project is not specified explictly in dict
-    if project not in AUTH and '' in AUTH and AUTH[''] == key:
+    if project not in auth and '' in auth and auth[''] == key:
         return True
 
     return False
@@ -101,7 +102,7 @@ def s_mkdir(sdir):
 
 def github_issue(user, repo, subject, body, issueid=None, close=False):
     """create/comment/delete github issue"""
-    if not GITHUB:
+    if not SETTINGS['github']:
         print("no github_token specified, won't handle issue request")
         return None
 
@@ -130,7 +131,7 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
 
     handle.add_header('Content-Type', 'application/json')
     handle.add_header('Accept', 'application/vnd.github.v3+json')
-    handle.add_header('Authorization', 'token {}'.format(GITHUB))
+    handle.add_header('Authorization', 'token {}'.format(SETTINGS['github']))
 
     srvdata = None
     try:
@@ -264,7 +265,7 @@ def save_build(project, branch, system, data):
                 fle.write(buildzip)
 
     with open(os.path.join(buildpath, 'metadata.bz2'), 'wb') as fle:
-        if GITHUB and posthook['github']:
+        if SETTINGS['github'] and posthook['github']:
             handle_github(project, branch, system, metadata)
         fle.write(bz2.compress(json.dumps(metadata).encode('UTF-8')))
         print("[SAVED] {}".format(project))
