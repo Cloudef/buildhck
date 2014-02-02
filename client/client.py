@@ -44,7 +44,7 @@ def run_cmd_catch_output(cmd):
         log.append(stderr)
     if stdout:
         if stderr:
-            log.append("\n")
+            log.append(b'\n')
         log.append(b':: stdout\n')
         log.append(stdout)
     return {'code': proc.returncode, 'output': log}
