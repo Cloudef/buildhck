@@ -138,7 +138,7 @@ if __name__ == '__main__':
     PID = os.fork()
     if PID:
         time.sleep(1)
-        RET = unittest.main(exit=False)
+        RET = unittest.main(verbosity=2, exit=False)
         os.kill(PID, 2)
         sys.exit(os.EX_OK if RET.result.wasSuccessful() else 1)
     else:
