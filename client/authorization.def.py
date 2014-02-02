@@ -13,4 +13,7 @@
 # Authorization key 'publicpassword' is used for everything else.
 key = {}
 
+# Server address
+server = 'http://localhost:9001'
+
 #  vim: set ts=8 sw=4 tw=0 :

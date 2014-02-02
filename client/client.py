@@ -8,12 +8,13 @@ from base64 import b64encode
 
 SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
-SETTINGS['server'] = 'http://cloudef.eu:9001'
+SETTINGS['server'] = 'http://localhost:9001'
+SETTINGS['auth'] = {}
 
-AUTH = {}
 try:
     import authorization
-    AUTH = authorization.key
+    SETTINGS['auth'] = authorization.key
+    SETTINGS['server'] = authorization.server
 except ImportError as exc:
     print("Authorization module was not loaded!")
 
@@ -199,10 +200,10 @@ def cook_recipe(recipe):
         branch = result.pop('branch', 'unknown')
 
         key = ''
-        if recipe.name in AUTH:
-            key = AUTH[recipe.name]
-        elif '' in AUTH:
-            key = AUTH['']
+        if recipe.name in SETTINGS['auth']:
+            key = SETTINGS['auth'][recipe.name]
+        elif '' in SETTINGS['auth']:
+            key = SETTINGS['auth']['']
 
         import sys, platform
         from urllib.parse import quote
