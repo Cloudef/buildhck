@@ -134,15 +134,15 @@ def download(recipe, srcdir, result):
     split = recipe.source.split('+', 1)
     if split:
         proto = split[0]
+        url = split[1]
         split = split[1].rsplit('#', 1)
     else:
+        url = recipe.source
         split = recipe.source.rsplit('#', 1)
 
-    if split:
+    if len(split) > 1:
         url = split[0]
         fragment = split[1]
-    else:
-        url = recipe.source
 
     if fragment:
         branch = fragment.partition("=")[2]
