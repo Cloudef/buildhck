@@ -546,6 +546,7 @@ def get_favicon():
     """fetch favicon"""
     return static_file('favicon.ico', root='.')
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 run(server=SETTINGS['server'], host='0.0.0.0', port=SETTINGS['port'])
 
 #  vim: set ts=8 sw=4 tw=0 :
