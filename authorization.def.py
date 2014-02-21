@@ -22,4 +22,10 @@ key = {}
 # When enabled, clients can request server to push github issues
 github = ''
 
+# Bottle.py WSGI backend
+server = 'auto'
+
+# Server port
+port = 9001
+
 #  vim: set ts=8 sw=4 tw=0 :

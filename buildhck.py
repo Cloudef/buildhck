@@ -11,6 +11,8 @@ SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
 SETTINGS['github'] = {}
 SETTINGS['auth'] = {}
+SETTINGS['server'] = 'auto'
+SETTINGS['port'] = 9001
 
 STUSKEYS = ['build', 'test', 'package']
 
@@ -56,6 +58,8 @@ try:
     import authorization
     SETTINGS['auth'] = authorization.key
     SETTINGS['github'] = authorization.github
+    SETTINGS['server'] = authorization.server
+    SETTINGS['port'] = authorization.port
 except ImportError as exc:
     print("Authorization module was not loaded!")
 
@@ -542,6 +546,6 @@ def get_favicon():
     """fetch favicon"""
     return static_file('favicon.ico', root='.')
 
-run(host='0.0.0.0', port=9001)
+run(server=SETTINGS['server'], host='0.0.0.0', port=SETTINGS['port'])
 
 #  vim: set ts=8 sw=4 tw=0 :
