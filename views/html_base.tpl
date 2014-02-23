@@ -7,7 +7,7 @@
    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico"/>
    <style>
       article { display:block; }
-      html { font-size:100%; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+      html { font-size:100%; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; overflow-x:hidden; }
       body { padding:0; margin:0; font-size:12px; line-height:1.15; color:#121212; background-color:#EEE; }
       body, input { font-family: arial, sans-serif; }
       input.link, a { color:#D81860; text-decoration:none; }
@@ -23,10 +23,11 @@
       .OK { color:green; font-weight:bold; }
       .FAIL { color:#FF1300; font-weight:bold; }
       .SKIP { color:#8E8E93; font-weight:bold; }
-      .col_33 { width:31%; margin:0 2% 0 0; float:left; }
+      .col_33 { width:31%; margin:0 2% 0 0; float:left; min-width:320px; }
       .clearfix:before, .clearfix:after { content:""; display:table; }
       .clearfix:after { clear:both; }
       .clearfix { zoom:1; }
+      @media only screen and (max-width:1100px) { .col_33 { width:100%; float:none; } }
    </style>
 </head>
 <body>
