@@ -24,6 +24,7 @@
       .FAIL { color:#FF1300; font-weight:bold; }
       .SKIP { color:#8E8E93; font-weight:bold; }
       .col_33 { width:31%; margin:0 2% 0 0; float:left; min-width:320px; }
+      .container { max-width:2048px; margin-left:auto; margin-right:auto; }
       .clearfix:before, .clearfix:after { content:""; display:table; }
       .clearfix:after { clear:both; }
       .clearfix { zoom:1; }
@@ -31,9 +32,11 @@
    </style>
 </head>
 <body>
+<div class='container'>
 <section class='projects'>
 {{!base}}
 </section>
+</div>
 </body>
 </html>
 
