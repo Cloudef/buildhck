@@ -255,6 +255,10 @@ def save_build(project, branch, system, data):
     s_mkdir(buildpath)
 
     metadata = metadata_for_build(project, branch, system, 'current')
+    if 'commit' in metadata and metadata['commit'] == data['commit']:
+        print('This commit is already built')
+        return
+
     metadata['date'] = date.isoformat()
     metadata['client'] = data['client']
     metadata['commit'] = data['commit']
