@@ -2,7 +2,7 @@
 # pylint: disable=C0301, R0904, R0201, W0212
 """unittests for buildhck"""
 
-SERVER = 'http://localhost:9001'
+SERVER = 'http://localhost:7357'
 
 import os, sys, time, json, unittest, subprocess
 from urllib.parse import quote
@@ -33,15 +33,17 @@ def send_build(data, project, branch, system):
         return False
     return True
 
-def delete_build(project, branch=None, system=None):
+def delete_build(project, branch=None, system=None, fsdate=None):
     """delete build from server"""
     request = None
     if not branch and not system:
         request = Request('{}/build/{}'.format(SERVER, quote(project)))
     elif branch and not system:
         request = Request('{}/build/{}/{}'.format(SERVER, quote(project), quote(branch)))
-    else:
+    elif branch and system and not fsdate:
         request = Request('{}/build/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system)))
+    else:
+        request = Request('{}/build/{}/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system), quote(fsdate)))
     request.get_method = lambda: 'DELETE'
     try:
         urlopen(request)
@@ -53,7 +55,7 @@ def delete_build(project, branch=None, system=None):
 
 def get_build_file(project, branch, system, bfile):
     """get file for build"""
-    request = Request('{}/build/{}/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system), quote(bfile)))
+    request = Request('{}/build/{}/{}/{}/current/{}'.format(SERVER, quote(project), quote(branch), quote(system), quote(bfile)))
     try:
         urlopen(request)
     except HTTPError:
@@ -104,6 +106,10 @@ class TestBuildFunctions(unittest.TestCase):
         assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest') == True
         assert delete_build('unittest', 'unittest', 'unittest') == True
 
+        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest') == True
+        assert delete_build('unittest', 'unittest', 'unittest', 'current') == True
+
+        assert delete_build('unittest', 'unittest', 'unittest', 'current') == False
         assert delete_build('unittest', 'unittest', 'unittest') == False
         assert delete_build('unittest', 'unittest') == False
         assert delete_build('unittest') == False
@@ -144,11 +150,12 @@ if __name__ == '__main__':
     else:
         try:
             FLE = open(os.devnull, 'w')
-            subprocess.call(['python3', 'buildhck.py'], stdout=FLE, stderr=FLE)
+            subprocess.call(['python3', 'buildhck.py', '-b', 'testbuilds', '-p', '7357'], stdout=FLE, stderr=FLE)
         except KeyboardInterrupt:
             pass
         finally:
             FLE.close()
+        os.rmdir('testbuilds')
         os._exit(os.EX_OK)
 
 #  vim: set ts=8 sw=4 tw=0 :
