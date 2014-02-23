@@ -270,10 +270,14 @@ def cook_recipe(recipe):
             touch(os.path.join(srcdir, '.buildhck_built'))
             print('Build successfully sent to server.')
 
-    os.chdir(STARTDIR)
+    # cleanup build and pkg directory
+    import shutil
+    if os.path.exists(builddir) and os.path.isdir(builddir):
+        shutil.rmtree(builddir)
+    if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
+        shutil.rmtree(pkgdir)
 
-    # import shutil
-    # shutil.rmtree(projectdir)
+    os.chdir(STARTDIR)
 
 def main():
     '''main method'''
