@@ -241,6 +241,11 @@ def save_build(project, branch, system, data):
     if not data:
         raise ValueError('build should have data')
 
+    metadata = metadata_for_build(project, branch, system, 'current')
+    if 'commit' in metadata and metadata['commit'] == data['commit']:
+        print('This commit is already built')
+        return
+
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
     s_mkdir(SETTINGS['builds_directory'])
@@ -253,11 +258,6 @@ def save_build(project, branch, system, data):
     currentpath = os.path.join(buildpath, 'current')
     buildpath = os.path.join(buildpath, fsdate)
     s_mkdir(buildpath)
-
-    metadata = metadata_for_build(project, branch, system, 'current')
-    if 'commit' in metadata and metadata['commit'] == data['commit']:
-        print('This commit is already built')
-        return
 
     metadata['date'] = date.isoformat()
     metadata['client'] = data['client']
