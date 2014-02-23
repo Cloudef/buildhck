@@ -1,5 +1,5 @@
 # pylint: disable=C0103
-"""authorization module for buildhck client"""
+'''authorization module for buildhck client'''
 
 # This dictionary contains authorization keys for projects.
 # Leave the key object empty, to specify default authorization key.

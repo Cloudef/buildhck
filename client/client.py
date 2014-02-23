@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# pylint: disable=C0301, R0913, R0914
-"""buildhck python client"""
+# pylint: disable=line-too-long
+'''buildhck python client'''
 
 import os, json, shlex
 from base64 import b64encode
@@ -10,22 +10,37 @@ SETTINGS['builds_directory'] = 'builds'
 SETTINGS['server'] = 'http://localhost:9001'
 SETTINGS['auth'] = {}
 
+class CookException(Exception):
+    '''exception related to cooking, if this fails the failed data is sent'''
+class RecipeException(Exception):
+    '''exception raised when there was problem with recipe, if this fails nothing is sent'''
+class DownloadException(Exception):
+    '''expection raised when there was problem with download, if this fails nothing is sent'''
+class NothingToDoException(Exception):
+    '''expection raised when there is nothing to cook, if this fails nothing is sent'''
+
 try:
     import authorization
-    SETTINGS['auth'] = authorization.key
-    SETTINGS['server'] = authorization.server
+    if 'key' in authorization.__dict__:
+        SETTINGS['auth'] = authorization.__dict__
+    if 'server' in authorization.__dict__:
+        SETTINGS['server'] = authorization.server
 except ImportError as exc:
     print("Authorization module was not loaded!")
 
 def s_mkdir(sdir):
-    """safe mkdir"""
+    '''safe mkdir'''
     if not os.path.exists(sdir):
         os.mkdir(sdir)
     if not os.path.isdir(sdir):
         raise IOError("local path '{}' is not a directory".format(sdir))
 
+def touch(path):
+    with open(path, 'a'):
+        os.utime(path, None)
+
 def expand_cmd(cmd, replace):
-    """expand commands from recipies"""
+    '''expand commands from recipies'''
     cmd_list = shlex.split(cmd)
     for i, item in enumerate(cmd_list):
         for rep in replace:
@@ -35,7 +50,7 @@ def expand_cmd(cmd, replace):
     return cmd_list
 
 def run_cmd_catch_output(cmd):
-    """run command and catch output and return value"""
+    '''run command and catch output and return value'''
     from select import select
     from subprocess import Popen, PIPE
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
@@ -55,7 +70,7 @@ def run_cmd_catch_output(cmd):
     return {'code': proc.returncode, 'output': log}
 
 def run_cmd_list_catch_output(cmd_list, result, expand):
-    """run commands in command list and catch output and return code"""
+    '''run commands in command list and catch output and return code'''
     log = []
     for cmd in cmd_list:
         expanded = expand_cmd(cmd, expand)
@@ -67,36 +82,35 @@ def run_cmd_list_catch_output(cmd_list, result, expand):
         if ret['code'] != os.EX_OK:
             result['status'] = 0
             result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
-            return False
+            raise CookException('command failed: {}'.format(expanded))
     result['status'] = 1 if cmd_list else -1
     result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
-    return True
 
 def prepare(recipe, srcdir, result):
-    """prepare project"""
+    '''prepare project'''
     return run_cmd_list_catch_output(recipe.prepare, result, {'$srcdir': srcdir})
 
 def build(recipe, srcdir, builddir, pkgdir, result):
-    """build project"""
+    '''build project'''
     return run_cmd_list_catch_output(recipe.build, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 def test(recipe, srcdir, builddir, result):
-    """test project"""
+    '''test project'''
     return run_cmd_list_catch_output(recipe.test, result, {'$srcdir': srcdir, '$builddir': builddir})
 
 def package(recipe, srcdir, builddir, pkgdir, result):
-    """package project"""
+    '''package project'''
     return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 def clone_git(srcdir, url, branch, result):
-    """clone source using git"""
+    '''clone source using git'''
     def git(*args):
-        """git wrapper"""
+        '''git wrapper'''
         from subprocess import check_call
         return check_call(['git'] + list(args)) == os.EX_OK
 
     def git2(*args):
-        """git wrapper2"""
+        '''git wrapper2'''
         from subprocess import check_output
         return check_output(['git'] + list(args))
 
@@ -108,28 +122,25 @@ def clone_git(srcdir, url, branch, result):
         os.chdir(srcdir)
         oldcommit = git2('rev-parse', 'HEAD').strip().decode('UTF-8')
         if not git('fetch', '-f', '-u', 'origin', '{}:{}'.format(branch, branch)):
-            return False
+            raise DownloadException('git fetch failed')
         if not git('checkout', '-f', '{}'.format(branch)):
-            return False
+            raise DownloadException('git checkout failed')
     elif not git('clone', '--depth', '1', '-b', branch, url, srcdir):
-        return False
+        raise DownloadException('git clone failed')
 
     os.chdir(srcdir)
     result['commit'] = git2('rev-parse', 'HEAD').strip().decode('UTF-8')
     result['description'] = git2('log', '-1', '--pretty=%B').strip().decode('UTF-8')
 
-    if result['commit'] == oldcommit:
-        print("no new changes to build...")
-        return False
-
-    return True
+    if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
+        raise NothingToDoException('There is nothing to build')
 
 def download(recipe, srcdir, result):
-    """download recipe"""
+    '''download recipe'''
     proto = ''
-    url = ''
     fragment = ''
     branch = ''
+    url = recipe.source
 
     split = recipe.source.split('+', 1)
     if split:
@@ -137,7 +148,6 @@ def download(recipe, srcdir, result):
         url = split[1]
         split = split[1].rsplit('#', 1)
     else:
-        url = recipe.source
         split = recipe.source.rsplit('#', 1)
 
     if len(split) > 1:
@@ -150,43 +160,47 @@ def download(recipe, srcdir, result):
             result['branch'] = branch
 
     if proto == 'git':
-        return clone_git(srcdir, url, branch, result)
+        clone_git(srcdir, url, branch, result)
+        return
 
-    print("unknown protocol")
-    return False
+    raise RecipeException('Unknown protocol: {}'.format(proto))
 
 def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
-    """perform recipe"""
+    '''perform recipe'''
     s_mkdir(srcdir)
-    if not download(recipe, srcdir, result):
-        return False
+    download(recipe, srcdir, result)
 
-    if not prepare(recipe, srcdir, result['build']):
-        return True
+    if 'prepare' in recipe.__dict__:
+        prepare(recipe, srcdir, result['build'])
 
     s_mkdir(builddir)
     os.chdir(builddir)
-    if not build(recipe, srcdir, builddir, pkgdir, result['build']):
-        return True
+    build(recipe, srcdir, builddir, pkgdir, result['build'])
 
-    if not test(recipe, srcdir, builddir, result['test']):
-        return True
+    if 'test' in recipe.__dict__:
+        test(recipe, srcdir, builddir, result['test'])
+    else:
+        result['test']['status'] = -1
 
-    s_mkdir(pkgdir)
-    os.chdir(builddir)
-    if not package(recipe, srcdir, builddir, pkgdir, result['package']):
-        return True
-
-    return True
+    if 'package' in recipe.__dict__:
+        s_mkdir(pkgdir)
+        os.chdir(builddir)
+        package(recipe, srcdir, builddir, pkgdir, result['package'])
+    else:
+        result['package']['status'] = -1
 
 def cook_recipe(recipe):
-    """prepare && cook recipe"""
+    '''prepare && cook recipe'''
+    # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+
     print('')
     print(recipe.name)
     print(recipe.source)
     print(recipe.build)
-    print(recipe.test)
-    print(recipe.package)
+    if 'test' in recipe.__dict__:
+        print(recipe.test)
+    if 'package' in recipe.__dict__:
+        print(recipe.package)
     print('')
 
     os.chdir(STARTDIR)
@@ -198,15 +212,29 @@ def cook_recipe(recipe):
 
     import socket
     result = {'client': socket.gethostname(),
-              'build': {'status': 0},
-              'test': {'status': 0},
-              'package': {'status': 0}}
+              'build': {'status': -1},
+              'test': {'status': -1},
+              'package': {'status': -1}}
 
-    if recipe.github:
+    if 'github' in recipe.__dict__ and recipe.github:
         result['github'] = recipe.github
 
     s_mkdir(projectdir)
-    if perform_recipe(recipe, srcdir, builddir, pkgdir, result):
+    send_build = True
+    try:
+        perform_recipe(recipe, srcdir, builddir, pkgdir, result)
+    except CookException as exc:
+        print('{} build failed :: {}'.format(recipe.name, str(exc)))
+    except RecipeException as exc:
+        print('{} recipe error :: {}'.format(recipe.name, str(exc)))
+        send_build = False
+    except DownloadException as exc:
+        print('{} download failed :: {}'.format(recipe.name, str(exc)))
+        send_build = False
+    except NothingToDoException:
+        send_build = False
+
+    if send_build:
         branch = result.pop('branch', 'unknown')
 
         key = ''
@@ -239,6 +267,7 @@ def cook_recipe(recipe):
             print('Failed to reach a server.')
             print('Reason: ', exc.reason)
         else:
+            touch(os.path.join(srcdir, '.buildhck_built'))
             print('Build successfully sent to server.')
 
     os.chdir(STARTDIR)
@@ -246,14 +275,19 @@ def cook_recipe(recipe):
     # import shutil
     # shutil.rmtree(projectdir)
 
-STARTDIR = os.path.dirname(os.path.abspath(__file__))
-os.chdir(STARTDIR)
+def main():
+    '''main method'''
+    for module in os.listdir('recipes'):
+        if module.find("_recipe.py") == -1:
+            continue
+        modulebase = os.path.splitext(module)[0]
+        cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
 
-for module in os.listdir('recipes'):
-    if module.find("_recipe.py") == -1:
-        continue
-
-    modulebase = os.path.splitext(module)[0]
-    cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
+if __name__ == '__main__':
+    STARTDIR = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(STARTDIR)
+    main()
+else:
+    raise Exception('Should not be used as module')
 
 #  vim: set ts=8 sw=4 tw=0 :
