@@ -1,4 +1,4 @@
-% rebase('html_base.tpl', title='buildhck')
+% rebase('html_base.tpl', title='buildhck', maxwidth=2048)
 
 % if not projects:
 <center class='no-projects'>No Projects</center>

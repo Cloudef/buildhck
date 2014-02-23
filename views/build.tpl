@@ -1,5 +1,5 @@
 % if standalone:
-% rebase('html_base.tpl', title='buildhck :: {} - {}'.format(build['project'], build['system']))
+% rebase('html_base.tpl', title='buildhck :: {} - {}'.format(build['project'], build['system']), maxwidth=1024)
 <h2>{{build['project']}} - {{build['system']}}</h2>
 % end
 

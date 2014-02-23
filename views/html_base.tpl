@@ -24,11 +24,12 @@
       .FAIL { color:#FF1300; font-weight:bold; }
       .SKIP { color:#8E8E93; font-weight:bold; }
       .col_33 { width:31%; margin:0 2% 0 0; float:left; min-width:320px; }
-      .container { max-width:2048px; margin-left:auto; margin-right:auto; }
+      .container { max-width:{{maxwidth}}px; margin-left:auto; margin-right:auto; }
       .clearfix:before, .clearfix:after { content:""; display:table; }
       .clearfix:after { clear:both; }
       .clearfix { zoom:1; }
       @media only screen and (max-width:1100px) { .col_33 { width:100%; float:none; } }
+      @media only screen and (max-width:320px) { section.projects { margin:0; } }
    </style>
 </head>
 <body>
