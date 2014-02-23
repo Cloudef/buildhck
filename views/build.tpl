@@ -1,9 +1,9 @@
 % if standalone:
-% rebase('html_base.tpl', title='buildhck - {}'.format(build['system']))
+% rebase('html_base.tpl', title='buildhck :: {} - {}'.format(build['project'], build['system']))
+<h2>{{build['project']}} - {{build['system']}}</h2>
 % end
 
 <div class='build'>
-<p>
    <img style="float:right;" src="{{build['statusimage']}}" alt="status"/>
    <img src="{{build['systemimage']}}" alt="platform"/>
    <strong>{{build['system']}}</strong> on <strong>{{build['client']}}</strong><br/>
@@ -22,8 +22,9 @@
 
    % if not standalone and 'history' in build:
    <a style='float:right;' href="{{'/build/{}/{}/{}'.format(build['project'], build['branch'], build['system'])}}">+</a>
+   % elif admin:
+   <a style='float:right;' href="{{'/delete/{}/{}/{}/{}'.format(build['project'], build['branch'], build['system'], build['fsdate'])}}">delete</a>
    % end
-</p>
 </div>
 
 % if standalone and 'history' in build:

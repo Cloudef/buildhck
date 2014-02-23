@@ -4,7 +4,7 @@
 
 import lib.bottle as bottle
 from lib.bottle import BaseTemplate, template
-from lib.bottle import static_file, response, request, route, abort, run
+from lib.bottle import static_file, response, request, redirect, route, abort, run
 from lib.header import supported_request
 from base64 import b64decode
 from datetime import datetime
@@ -190,6 +190,18 @@ def check_github_posthook(data, metadata):
                           'repo': data['github']['repo'],
                           'issueid': issueid}
     return True
+
+def build_exists(project, branch=None, system=None, fsdate=None):
+    '''check if build dir exists'''
+    validate_build(project, branch, system)
+    buildpath = os.path.join(SETTINGS['builds_directory'], project)
+    if branch:
+        buildpath = os.path.join(buildpath, branch)
+    if system:
+        buildpath = os.path.join(buildpath, system)
+    if fsdate:
+        buildpath = os.path.join(buildpath, fsdate)
+    return os.path.exists(buildpath)
 
 def delete_build(project, branch=None, system=None, fsdate=None):
     '''delete build'''
@@ -533,6 +545,7 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
         return None
 
     metadata['project'] = project
+    metadata['fsdate'] = fsdate
     metadata['idate'] = date
     metadata['fdate'] = date.strftime("%Y-%m-%d %H:%M")
     metadata['system'] = system
@@ -592,6 +605,19 @@ def clean_build_json(build):
             clean_build_json(old)
     return build
 
+@route('/delete/<project>/<branch>/<system>/<fsdate>', ['GET'])
+def delete_build_ui(project=None, branch=None, system=None, fsdate=None):
+    '''delete build using get interface'''
+    admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
+    if not admin:
+        abort(403, 'You are not allowed to do this')
+    delete_build(project, branch, system, fsdate)
+    if is_json_request():
+        return 'OK!'
+    if build_exists(project, branch, system):
+        return redirect('/build/{}/{}/{}'.format(project, branch, system))
+    return redirect('/')
+
 @route('/build/<project>/<branch>/<system>', ['GET'])
 def system_page(project=None, branch=None, system=None):
     '''got branch delete request from client'''
@@ -601,7 +627,8 @@ def system_page(project=None, branch=None, system=None):
         abort(404, 'Builds for system not found')
     if is_json_request():
         return dump_json(clean_build_json(data))
-    return template('build', build=data, standalone=True)
+    admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
+    return template('build', admin=admin, build=data, standalone=True)
 
 @route('/')
 def index():
@@ -613,7 +640,8 @@ def index():
             for build in project['builds']:
                 clean_build_json(build)
         return dump_json(projects)
-    return template('projects', projects=get_projects())
+    admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
+    return template('projects', admin=admin, projects=get_projects())
 
 @route('/favicon.ico')
 def get_favicon():

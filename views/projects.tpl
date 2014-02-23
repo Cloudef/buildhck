@@ -6,7 +6,7 @@
 
 % itr = 0
 % for project in projects:
-%    include('project.tpl', project=project)
+%    include('project.tpl', admin=admin, project=project)
 %    itr += 1
 %    if itr >= 3:
         <div class='clearfix'></div>

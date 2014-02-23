@@ -1,7 +1,7 @@
 <div class='project col_33'>
    <h2>{{project['name']}}</h2>
    % for build in project['builds']:
-   %    include('build.tpl', build=build, standalone=False)
+   %    include('build.tpl', admin=admin, build=build, standalone=False)
    % end
 </div>
 
