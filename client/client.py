@@ -159,6 +159,9 @@ def download(recipe, srcdir, result):
         if branch:
             result['branch'] = branch
 
+    if not branch:
+        result['branch'] = 'master'
+
     if proto == 'git':
         clone_git(srcdir, url, branch, result)
         return
