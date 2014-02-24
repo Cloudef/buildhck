@@ -215,6 +215,7 @@ def build_exists(project, branch=None, system=None, fsdate=None):
 
 def delete_build(project, branch=None, system=None, fsdate=None):
     '''delete build'''
+    # pylint: disable=too-many-branches
     validate_build(project, branch, system)
 
     parentpath = None
