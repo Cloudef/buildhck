@@ -216,6 +216,7 @@ def build_exists(project, branch=None, system=None, fsdate=None):
 def delete_build(project, branch=None, system=None, fsdate=None):
     '''delete build'''
     # pylint: disable=too-many-branches
+
     validate_build(project, branch, system)
 
     parentpath = None
@@ -544,6 +545,8 @@ def icon_for_system(system):
 
 def get_build_data(project, branch, system, fsdate, get_history=True, in_metadata=None):
     '''get data for build'''
+    # pylint: disable=too-many-arguments
+
     metadata = {}
     if in_metadata:
         for key, value in in_metadata.items():
