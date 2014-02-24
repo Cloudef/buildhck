@@ -181,7 +181,7 @@ def handle_github(project, branch, system, fsdate, metadata):
     build = get_build_data(project, branch, system, fsdate, get_history=False, in_metadata=metadata)
     for idx in range(len(build['url'])):
         build['url'][idx] = absolute_link(build['url'][idx][1:])
-    build['systemimage'] = absolute_link(build['systemimage'][idx][1:])
+    build['systemimage'] = absolute_link(build['systemimage'][1:])
 
     subject = template('github_issue', build=build, subject=True)
     body = template('github_issue', build=build, subject=False)
