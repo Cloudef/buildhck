@@ -57,6 +57,14 @@ def dump_json(dic):
     request.content_type = 'application/json'
     return json.dumps(dic)
 
+def remove_control_characters(txt):
+    import unicodedata
+    result = []
+    lines = txt.splitlines()
+    for line in lines:
+        result.append(''.join(char for char in line if unicodedata.category(char)[0] != 'C'))
+    return '\n'.join(result)
+
 def validate_build(project, branch=None, system=None):
     '''validate build information'''
     if FNFILTERPROG.search(project):
@@ -286,7 +294,8 @@ def save_build(project, branch, system, data):
         metadata[key] = {'status': value['status']}
 
         if value['log']:
-            buildlog = bz2.compress(b64decode(value['log'].encode('UTF-8')))
+            text = remove_control_characters(b64decode(value['log'].encode('UTF-8')).decode('UTF-8'))
+            buildlog = bz2.compress(text.encode('UTF-8'))
             with open(os.path.join(buildpath, '{}-log.bz2'.format(key)), 'wb') as fle:
                 fle.write(buildlog)
 
