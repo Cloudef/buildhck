@@ -11,6 +11,8 @@ from datetime import datetime
 from urllib.parse import quote
 import os, re, bz2, json
 
+bottle.BaseRequest.MEMFILE_MAX = 4096 * 1024
+
 SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
 SETTINGS['github'] = {}
