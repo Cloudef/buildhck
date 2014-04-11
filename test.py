@@ -143,7 +143,13 @@ if __name__ == '__main__':
 
     PID = os.fork()
     if PID:
-        time.sleep(1)
+        SC = 0
+        while True:
+            if get_file('') == True:
+                break
+            SC += 1
+            assert SC < 30 # 30 sleeps
+            time.sleep(1)
         RET = unittest.main(verbosity=2, exit=False)
         os.kill(PID, 2)
         sys.exit(os.EX_OK if RET.result.wasSuccessful() else 1)
