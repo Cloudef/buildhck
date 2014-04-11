@@ -42,6 +42,7 @@ def parse_accept(accept):
             if vnd.startswith('vnd'):
                 # and then... if it ends in something like "-v1.1" parse the
                 # version out
+                version = None
                 if '-v' in vnd:
                     vnd, dummy_sep, rest = vnd.rpartition('-v')
                     if len(rest):
