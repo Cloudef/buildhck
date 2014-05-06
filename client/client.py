@@ -210,9 +210,14 @@ def cook_recipe(recipe):
     os.chdir(STARTDIR)
     s_mkdir(SETTINGS['builds_directory'])
     projectdir = os.path.abspath(os.path.join(SETTINGS['builds_directory'], recipe.name))
-    builddir = os.path.abspath(os.path.join(projectdir, 'build'))
-    srcdir = os.path.abspath(os.path.join(projectdir, 'src'))
+
     pkgdir = os.path.abspath(os.path.join(projectdir, 'pkg'))
+    srcdir = os.path.abspath(os.path.join(projectdir, 'src'))
+
+    if 'build_in_srcdir' in recipe.__dict__ and recipe.build_in_srcdir:
+        builddir = srcdir
+    else:
+        builddir = os.path.abspath(os.path.join(projectdir, 'build'))
 
     import socket
     result = {'client': socket.gethostname(),
