@@ -9,6 +9,7 @@ SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
 SETTINGS['server'] = 'http://localhost:9001'
 SETTINGS['auth'] = {}
+SETTINGS['cleanup'] = False
 
 class CookException(Exception):
     '''exception related to cooking, if this fails the failed data is sent'''
@@ -280,16 +281,31 @@ def cook_recipe(recipe):
             print('Build successfully sent to server.')
 
     # cleanup build and pkg directory
-    import shutil
-    if os.path.exists(builddir) and os.path.isdir(builddir):
-        shutil.rmtree(builddir)
-    if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
-        shutil.rmtree(pkgdir)
+    if SETTINGS['cleanup']:
+        import shutil
+        if builddir is not srcdir and os.path.exists(builddir) and os.path.isdir(builddir):
+            shutil.rmtree(builddir)
+        if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
+            shutil.rmtree(pkgdir)
 
     os.chdir(STARTDIR)
 
 def main():
     '''main method'''
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option('-s', '--server', dest='server',
+                      help='buildhck server url')
+    parser.add_option('-b', '--buildsdir', dest='builds_directory',
+                      help='directory for builds')
+    parser.add_option('-c', '--cleanup', dest='cleanup',
+                      help='cleanup build and package directories after build')
+    optargs = parser.parse_args()
+
+    for key in SETTINGS.keys():
+        if optargs[0].__dict__.get(key):
+            SETTINGS[key] = optargs[0].__dict__[key]
+
     for module in os.listdir('recipes'):
         if module.find("_recipe.py") == -1:
             continue
