@@ -159,7 +159,7 @@ def clone_hg(srcdir, url, branch, result):
         oldcommit = hg2('tip', '--quiet').strip().decode('UTF-8')
         if not hg('pull'):
             raise DownloadException('hg pull failed')
-        if not hg('update', branch):
+        if not hg('update', '-C', branch):
             raise DownloadException('hg update failed')
     elif not hg('clone', '-b', branch, url, srcdir):
         raise DownloadException('hg clone failed')
