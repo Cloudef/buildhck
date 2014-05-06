@@ -137,6 +137,40 @@ def clone_git(srcdir, url, branch, result):
     if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
         raise NothingToDoException('There is nothing to build')
 
+def clone_hg(srcdir, url, branch, result):
+    '''clone source using hg'''
+    def hg(*args):
+        '''hg wrapper'''
+        # pylint: disable=invalid-name
+        from subprocess import check_call
+        return check_call(['hg'] + list(args)) == os.EX_OK
+
+    def hg2(*args):
+        '''hg wrapper2'''
+        from subprocess import check_output
+        return check_output(['hg'] + list(args))
+
+    if not branch:
+        branch = 'default'
+
+    oldcommit = ''
+    if os.path.isdir(os.path.join(srcdir, '.hg')):
+        os.chdir(srcdir)
+        oldcommit = hg2('tip', '--quiet').strip().decode('UTF-8')
+        if not hg('pull'):
+            raise DownloadException('hg pull failed')
+        if not hg('update', branch):
+            raise DownloadException('hg update failed')
+    elif not hg('clone', '-b', branch, url, srcdir):
+        raise DownloadException('hg clone failed')
+
+    os.chdir(srcdir)
+    result['commit'] = hg2('tip', '--quiet').strip().decode('UTF-8')
+    result['description'] = hg2('log', '-l1', '--template', '{desc}').decode('UTF-8')
+
+    if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
+        raise NothingToDoException('There is nothing to build')
+
 def download(recipe, srcdir, result):
     '''download recipe'''
     proto = ''
@@ -161,11 +195,15 @@ def download(recipe, srcdir, result):
         if branch:
             result['branch'] = branch
 
-    if not branch:
-        result['branch'] = 'master'
-
     if proto == 'git':
+        if not branch:
+            result['branch'] = 'master'
         clone_git(srcdir, url, branch, result)
+        return
+    if proto == 'hg':
+        if not branch:
+            result['branch'] = 'default'
+        clone_hg(srcdir, url, branch, result)
         return
 
     raise RecipeException('Unknown protocol: {}'.format(proto))
