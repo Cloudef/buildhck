@@ -36,6 +36,7 @@ def s_mkdir(sdir):
         raise IOError("local path '{}' is not a directory".format(sdir))
 
 def touch(path):
+    '''touch file'''
     with open(path, 'a'):
         os.utime(path, None)
 

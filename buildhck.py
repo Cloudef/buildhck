@@ -60,6 +60,7 @@ def dump_json(dic):
     return json.dumps(dic)
 
 def remove_control_characters(txt):
+    '''remove control characters from string'''
     import unicodedata
     result = []
     lines = txt.splitlines()
@@ -261,6 +262,7 @@ def delete_build(project, branch=None, system=None, fsdate=None):
 
 def save_build(project, branch, system, data):
     '''save build to disk'''
+    # pylint: disable=too-many-locals
     validate_build(project, branch, system)
     if not data:
         raise ValueError('build should have data')
