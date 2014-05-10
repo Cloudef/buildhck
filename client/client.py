@@ -336,7 +336,7 @@ def main():
                       help='buildhck server url')
     parser.add_option('-b', '--buildsdir', dest='builds_directory',
                       help='directory for builds')
-    parser.add_option('-c', '--cleanup', dest='cleanup',
+    parser.add_option('-c', '--cleanup', action="store_true", dest='cleanup',
                       help='cleanup build and package directories after build')
     optargs = parser.parse_args()
 
