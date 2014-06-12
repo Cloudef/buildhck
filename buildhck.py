@@ -430,6 +430,8 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
         abort(404, "Build does not exist.")
 
     if bfile == 'build-status.png':
+        response.set_header('Cache-control', 'no-cache')
+        response.set_header('Pragma', 'no-cache')
         if not failure_for_build(project, branch, system, fsdate):
             return static_file('ok.png', root='media/status/')
         return static_file('fail.png', root='media/status/')
@@ -517,7 +519,8 @@ def links_for_build(project, branch, system, fsdate):
 
 def status_image_link_for_build(project, branch, system, fsdate):
     '''get status image for build'''
-    return quote('/build/{}/{}/{}/{}/build-status.png'.format(project, branch, system, fsdate))
+    import time
+    return '{}?{}'.format(quote('/build/{}/{}/{}/{}/build-status.png'.format(project, branch, system, fsdate)), time.time())
 
 def metadata_for_build(project, branch, system, fsdate):
     '''get metadata for build'''
