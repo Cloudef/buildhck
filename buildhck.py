@@ -684,14 +684,18 @@ def main():
         if optargs[0].__dict__.get(key):
             SETTINGS[key] = optargs[0].__dict__[key]
 
-    bottle.debug(True)
-    BaseTemplate.defaults['STUSKEYS'] = STUSKEYS
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     run(server=SETTINGS['server'], host='0.0.0.0', port=SETTINGS['port'])
 
+def setup():
+    '''setup method'''
+    BaseTemplate.defaults['STUSKEYS'] = STUSKEYS
+
+setup()
 if __name__ == "__main__":
     main()
 else:
-    raise Exception('Should not be used as module')
+    # pylint: disable=invalid-name
+    application = bottle.default_app()
 
 #  vim: set ts=8 sw=4 tw=0 :
