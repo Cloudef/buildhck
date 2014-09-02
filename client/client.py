@@ -2,7 +2,9 @@
 # pylint: disable=line-too-long
 '''buildhck python client'''
 
-import os, json, shlex
+import os
+import json
+import shlex
 from base64 import b64encode
 
 import logging
@@ -14,14 +16,22 @@ SETTINGS['server'] = 'http://localhost:9001'
 SETTINGS['auth'] = {}
 SETTINGS['cleanup'] = False
 
+
 class CookException(Exception):
     '''exception related to cooking, if this fails the failed data is sent'''
+
+
 class RecipeException(Exception):
     '''exception raised when there was problem with recipe, if this fails nothing is sent'''
+
+
 class DownloadException(Exception):
     '''expection raised when there was problem with download, if this fails nothing is sent'''
+
+
 class NothingToDoException(Exception):
     '''expection raised when there is nothing to cook, if this fails nothing is sent'''
+
 
 def s_mkdir(sdir):
     '''safe mkdir'''
@@ -30,10 +40,12 @@ def s_mkdir(sdir):
     if not os.path.isdir(sdir):
         raise IOError("local path '{}' is not a directory".format(sdir))
 
+
 def touch(path):
     '''touch file'''
     with open(path, 'a'):
         os.utime(path, None)
+
 
 def expand_cmd(cmd, replace):
     '''expand commands from recipies'''
@@ -44,6 +56,7 @@ def expand_cmd(cmd, replace):
                 cmd_list[i] = item.replace(rep, replace[rep])
     logging.debug(cmd_list)
     return cmd_list
+
 
 def run_cmd_catch_output(cmd):
     '''run command and catch output and return value'''
@@ -60,10 +73,11 @@ def run_cmd_catch_output(cmd):
                 log.append(proc.stdout.readline())
             elif fdi == proc.stderr.fileno():
                 log.append(proc.stderr.readline())
-        if proc.poll() != None:
+        if proc.poll() is not None:
             break
 
     return {'code': proc.returncode, 'output': log}
+
 
 def run_cmd_list_catch_output(cmd_list, result, expand):
     '''run commands in command list and catch output and return code'''
@@ -82,21 +96,26 @@ def run_cmd_list_catch_output(cmd_list, result, expand):
     result['status'] = 1 if cmd_list else -1
     result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
 
+
 def prepare(recipe, srcdir, result):
     '''prepare project'''
     return run_cmd_list_catch_output(recipe.prepare, result, {'$srcdir': srcdir})
+
 
 def build(recipe, srcdir, builddir, pkgdir, result):
     '''build project'''
     return run_cmd_list_catch_output(recipe.build, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
+
 def test(recipe, srcdir, builddir, result):
     '''test project'''
     return run_cmd_list_catch_output(recipe.test, result, {'$srcdir': srcdir, '$builddir': builddir})
 
+
 def package(recipe, srcdir, builddir, pkgdir, result):
     '''package project'''
     return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
+
 
 def clone_git(srcdir, url, branch, result):
     '''clone source using git'''
@@ -131,6 +150,7 @@ def clone_git(srcdir, url, branch, result):
     if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
         raise NothingToDoException('There is nothing to build')
 
+
 def clone_hg(srcdir, url, branch, result):
     '''clone source using hg'''
     def hg(*args):
@@ -164,6 +184,7 @@ def clone_hg(srcdir, url, branch, result):
 
     if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
         raise NothingToDoException('There is nothing to build')
+
 
 def download(recipe, srcdir, result):
     '''download recipe'''
@@ -202,6 +223,7 @@ def download(recipe, srcdir, result):
 
     raise RecipeException('Unknown protocol: {}'.format(proto))
 
+
 def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     '''perform recipe'''
     s_mkdir(srcdir)
@@ -226,6 +248,7 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     else:
         result['package']['status'] = -1
 
+
 def upload_build(recipe, result, srcdir):
     '''upload build'''
     branch = result.pop('branch', 'unknown')
@@ -236,7 +259,8 @@ def upload_build(recipe, result, srcdir):
     elif '' in SETTINGS['auth']:
         key = SETTINGS['auth']['']
 
-    import sys, platform
+    import sys
+    import platform
     from urllib.parse import quote
     from urllib.request import Request, urlopen
     from urllib.error import URLError, HTTPError
@@ -264,6 +288,7 @@ def upload_build(recipe, result, srcdir):
         touch(os.path.join(srcdir, '.buildhck_built'))
         logging.info('Build successfully sent to server.')
 
+
 def cleanup_build(builddir, srcdir, pkgdir):
     '''cleanup build'''
     import shutil
@@ -271,6 +296,7 @@ def cleanup_build(builddir, srcdir, pkgdir):
         shutil.rmtree(builddir)
     if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
         shutil.rmtree(pkgdir)
+
 
 def cook_recipe(recipe):
     '''prepare && cook recipe'''
@@ -327,6 +353,7 @@ def cook_recipe(recipe):
 
     os.chdir(STARTDIR)
 
+
 def main():
     '''main method'''
     from argparse import ArgumentParser
@@ -352,8 +379,8 @@ def main():
             SETTINGS['auth'] = authorization.__dict__
         if 'server' in authorization.__dict__:
             SETTINGS['server'] = authorization.server
-    except ImportError as exc:
-        logging.warn("Authorization module was not loaded!")
+    except ImportError:
+        logging.warn('Authorization module was not loaded!')
 
     for key in SETTINGS.keys():
         if args.__dict__.get(key):
