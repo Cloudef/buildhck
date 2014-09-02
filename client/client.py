@@ -338,19 +338,21 @@ def cook_recipe(recipe):
 
 def main():
     '''main method'''
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option('-s', '--server', dest='server',
-                      help='buildhck server url')
-    parser.add_option('-b', '--buildsdir', dest='builds_directory',
-                      help='directory for builds')
-    parser.add_option('-c', '--cleanup', action="store_true", dest='cleanup',
-                      help='cleanup build and package directories after build')
-    optargs = parser.parse_args()
+    from argparse import ArgumentParser
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument('-s', '--server', dest='server',
+                        help='buildhck server url')
+    parser.add_argument('-b', '--buildsdir', dest='builds_directory',
+                        help='directory for builds')
+    parser.add_argument('-c', '--cleanup', action="store_true", dest='cleanup',
+                        help='cleanup build and package directories after build')
+    parser.add_argument('-a', '--auth', dest='auth', type=json.loads,
+                        help='set authentication token for upload')
+    args = parser.parse_args()
 
     for key in SETTINGS.keys():
-        if optargs[0].__dict__.get(key):
-            SETTINGS[key] = optargs[0].__dict__[key]
+        if args.__dict__.get(key):
+            SETTINGS[key] = args.__dict__[key]
 
     for module in os.listdir('recipes'):
         if module.find("_recipe.py") == -1:
