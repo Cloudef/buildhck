@@ -5,6 +5,9 @@
 import os, json, shlex
 from base64 import b64encode
 
+import logging
+logging.root.name = 'buildhck'
+
 SETTINGS = {}
 SETTINGS['builds_directory'] = 'builds'
 SETTINGS['server'] = 'http://localhost:9001'
@@ -19,15 +22,6 @@ class DownloadException(Exception):
     '''expection raised when there was problem with download, if this fails nothing is sent'''
 class NothingToDoException(Exception):
     '''expection raised when there is nothing to cook, if this fails nothing is sent'''
-
-try:
-    import authorization
-    if 'key' in authorization.__dict__:
-        SETTINGS['auth'] = authorization.__dict__
-    if 'server' in authorization.__dict__:
-        SETTINGS['server'] = authorization.server
-except ImportError as exc:
-    print("Authorization module was not loaded!")
 
 def s_mkdir(sdir):
     '''safe mkdir'''
@@ -48,7 +42,7 @@ def expand_cmd(cmd, replace):
         for rep in replace:
             if rep in item:
                 cmd_list[i] = item.replace(rep, replace[rep])
-    print(cmd_list)
+    logging.debug(cmd_list)
     return cmd_list
 
 def run_cmd_catch_output(cmd):
@@ -257,18 +251,18 @@ def upload_build(recipe, result, srcdir):
     try:
         urlopen(request, json.dumps(result).encode('UTF-8'))
     except HTTPError as exc:
-        print("The server couldn't fulfill the request.")
-        print('Error code: ', exc.code)
+        logging.error("The server couldn't fulfill the request.")
+        logging.error('Error code: %s', exc.code)
         if exc.code == 400:
-            print("Client is broken, wrong syntax given to server")
+            logging.error("Client is broken, wrong syntax given to server")
         elif exc.code == 401:
-            print("Wrong key provided for project.")
+            logging.error("Wrong key provided for project.")
     except URLError as exc:
-        print('Failed to reach a server.')
-        print('Reason: ', exc.reason)
+        logging.error('Failed to reach a server.')
+        logging.error('Reason: %s', exc.reason)
     else:
         touch(os.path.join(srcdir, '.buildhck_built'))
-        print('Build successfully sent to server.')
+        logging.info('Build successfully sent to server.')
 
 def cleanup_build(builddir, srcdir, pkgdir):
     '''cleanup build'''
@@ -281,15 +275,12 @@ def cleanup_build(builddir, srcdir, pkgdir):
 def cook_recipe(recipe):
     '''prepare && cook recipe'''
 
-    print('')
-    print(recipe.name)
-    print(recipe.source)
-    print(recipe.build)
+    logging.info('Building %s from %s', recipe.name, recipe.source)
+    logging.debug(recipe.build)
     if 'test' in recipe.__dict__:
-        print(recipe.test)
+        logging.debug(recipe.test)
     if 'package' in recipe.__dict__:
-        print(recipe.package)
-    print('')
+        logging.debug(recipe.package)
 
     os.chdir(STARTDIR)
     s_mkdir(SETTINGS['builds_directory'])
@@ -317,12 +308,12 @@ def cook_recipe(recipe):
     try:
         perform_recipe(recipe, srcdir, builddir, pkgdir, result)
     except CookException as exc:
-        print('{} build failed :: {}'.format(recipe.name, str(exc)))
+        logging.error('{} build failed :: {}'.format(recipe.name, str(exc)))
     except RecipeException as exc:
-        print('{} recipe error :: {}'.format(recipe.name, str(exc)))
+        logging.error('{} recipe error :: {}'.format(recipe.name, str(exc)))
         send_build = False
     except DownloadException as exc:
-        print('{} download failed :: {}'.format(recipe.name, str(exc)))
+        logging.error('{} download failed :: {}'.format(recipe.name, str(exc)))
         send_build = False
     except NothingToDoException:
         send_build = False
@@ -344,11 +335,25 @@ def main():
                         help='buildhck server url')
     parser.add_argument('-b', '--buildsdir', dest='builds_directory',
                         help='directory for builds')
-    parser.add_argument('-c', '--cleanup', action="store_true", dest='cleanup',
+    parser.add_argument('-c', '--cleanup', action='store_true', dest='cleanup',
                         help='cleanup build and package directories after build')
     parser.add_argument('-a', '--auth', dest='auth', type=json.loads,
                         help='set authentication token for upload')
+    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+                        help='print debug information')
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+                        format='[%(name)s] [%(levelname)s]: %(message)s')
+
+    try:
+        import authorization
+        if 'key' in authorization.__dict__:
+            SETTINGS['auth'] = authorization.__dict__
+        if 'server' in authorization.__dict__:
+            SETTINGS['server'] = authorization.server
+    except ImportError as exc:
+        logging.warn("Authorization module was not loaded!")
 
     for key in SETTINGS.keys():
         if args.__dict__.get(key):
