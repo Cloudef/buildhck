@@ -232,9 +232,54 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     else:
         result['package']['status'] = -1
 
+def upload_build(recipe, result, srcdir):
+    '''upload build'''
+    branch = result.pop('branch', 'unknown')
+
+    key = ''
+    if recipe.name in SETTINGS['auth']:
+        key = SETTINGS['auth'][recipe.name]
+    elif '' in SETTINGS['auth']:
+        key = SETTINGS['auth']['']
+
+    import sys, platform
+    from urllib.parse import quote
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError, HTTPError
+    request = Request('{}/build/{}/{}/{}'.format(
+        SETTINGS['server'], quote(recipe.name), quote(branch),
+        quote('{} {}'.format(sys.platform, platform.machine()))))
+
+    request.add_header('Content-Type', 'application/json')
+    if key:
+        request.add_header('Authorization', key)
+
+    try:
+        urlopen(request, json.dumps(result).encode('UTF-8'))
+    except HTTPError as exc:
+        print("The server couldn't fulfill the request.")
+        print('Error code: ', exc.code)
+        if exc.code == 400:
+            print("Client is broken, wrong syntax given to server")
+        elif exc.code == 401:
+            print("Wrong key provided for project.")
+    except URLError as exc:
+        print('Failed to reach a server.')
+        print('Reason: ', exc.reason)
+    else:
+        touch(os.path.join(srcdir, '.buildhck_built'))
+        print('Build successfully sent to server.')
+
+def cleanup_build(builddir, srcdir, pkgdir):
+    '''cleanup build'''
+    import shutil
+    if builddir is not srcdir and os.path.exists(builddir) and os.path.isdir(builddir):
+        shutil.rmtree(builddir)
+    if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
+        shutil.rmtree(pkgdir)
+
 def cook_recipe(recipe):
     '''prepare && cook recipe'''
-    # pylint: disable=too-many-branches, too-many-statements, too-many-locals
 
     print('')
     print(recipe.name)
@@ -283,48 +328,11 @@ def cook_recipe(recipe):
         send_build = False
 
     if send_build:
-        branch = result.pop('branch', 'unknown')
-
-        key = ''
-        if recipe.name in SETTINGS['auth']:
-            key = SETTINGS['auth'][recipe.name]
-        elif '' in SETTINGS['auth']:
-            key = SETTINGS['auth']['']
-
-        import sys, platform
-        from urllib.parse import quote
-        from urllib.request import Request, urlopen
-        from urllib.error import URLError, HTTPError
-        request = Request('{}/build/{}/{}/{}'.format(SETTINGS['server'],
-            quote(recipe.name), quote(branch), quote('{} {}'.format(sys.platform, platform.machine()))))
-
-        request.add_header('Content-Type', 'application/json')
-        if key:
-            request.add_header('Authorization', key)
-
-        try:
-            urlopen(request, json.dumps(result).encode('UTF-8'))
-        except HTTPError as exc:
-            print("The server couldn't fulfill the request.")
-            print('Error code: ', exc.code)
-            if exc.code == 400:
-                print("Client is broken, wrong syntax given to server")
-            elif exc.code == 401:
-                print("Wrong key provided for project.")
-        except URLError as exc:
-            print('Failed to reach a server.')
-            print('Reason: ', exc.reason)
-        else:
-            touch(os.path.join(srcdir, '.buildhck_built'))
-            print('Build successfully sent to server.')
+        upload_build(recipe, result, srcdir)
 
     # cleanup build and pkg directory
     if SETTINGS['cleanup']:
-        import shutil
-        if builddir is not srcdir and os.path.exists(builddir) and os.path.isdir(builddir):
-            shutil.rmtree(builddir)
-        if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
-            shutil.rmtree(pkgdir)
+        cleanup_build(srcdir, builddir, pkgdir)
 
     os.chdir(STARTDIR)
 
