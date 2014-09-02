@@ -171,46 +171,6 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
         result['package']['status'] = -1
 
 
-def upload_build(recipe, result, srcdir):
-    '''upload build'''
-    branch = result.pop('branch', 'unknown')
-
-    key = ''
-    if recipe.name in SETTINGS['auth']:
-        key = SETTINGS['auth'][recipe.name]
-    elif '' in SETTINGS['auth']:
-        key = SETTINGS['auth']['']
-
-    import sys
-    import platform
-    from urllib.parse import quote
-    from urllib.request import Request, urlopen
-    from urllib.error import URLError, HTTPError
-    request = Request('{}/build/{}/{}/{}'.format(
-        SETTINGS['server'], quote(recipe.name), quote(branch),
-        quote('{} {}'.format(sys.platform, platform.machine()))))
-
-    request.add_header('Content-Type', 'application/json')
-    if key:
-        request.add_header('Authorization', key)
-
-    try:
-        urlopen(request, json.dumps(result).encode('UTF-8'))
-    except HTTPError as exc:
-        logging.error("The server couldn't fulfill the request.")
-        logging.error('Error code: %s', exc.code)
-        if exc.code == 400:
-            logging.error("Client is broken, wrong syntax given to server")
-        elif exc.code == 401:
-            logging.error("Wrong key provided for project.")
-    except URLError as exc:
-        logging.error('Failed to reach a server.')
-        logging.error('Reason: %s', exc.reason)
-    else:
-        touch(os.path.join(srcdir, '.buildhck_built'))
-        logging.info('Build successfully sent to server.')
-
-
 def cleanup_build(builddir, srcdir, pkgdir):
     '''cleanup build'''
     import shutil
@@ -218,6 +178,26 @@ def cleanup_build(builddir, srcdir, pkgdir):
         shutil.rmtree(builddir)
     if os.path.exists(pkgdir) and os.path.isdir(pkgdir):
         shutil.rmtree(pkgdir)
+
+
+def upload_build(recipe, result, srcdir):
+    '''upload build'''
+    try:
+        service = import_module('services.{}'.format('buildhck'))
+    except ImportError:
+        raise Exception('TODO')
+
+    for name in [recipe.name, '']:
+        if name in SETTINGS['auth']:
+            key = SETTINGS['auth'][name]
+            break
+    else:
+        key = None
+
+    if service.upload(recipe, result, SETTINGS['server'], key):
+        touch(os.path.join(srcdir, '.buildhck_built'))
+        logging.info('Build successfully sent to server.')
+    # the error already got displayed
 
 
 def cook_recipe(recipe):
