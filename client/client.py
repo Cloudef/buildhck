@@ -6,6 +6,9 @@ import os
 import json
 import shlex
 from base64 import b64encode
+from importlib import import_module
+
+from protocols import DownloadException, NothingToDoException
 
 import logging
 logging.root.name = 'buildhck'
@@ -23,14 +26,6 @@ class CookException(Exception):
 
 class RecipeException(Exception):
     '''exception raised when there was problem with recipe, if this fails nothing is sent'''
-
-
-class DownloadException(Exception):
-    '''expection raised when there was problem with download, if this fails nothing is sent'''
-
-
-class NothingToDoException(Exception):
-    '''expection raised when there is nothing to cook, if this fails nothing is sent'''
 
 
 def s_mkdir(sdir):
@@ -117,75 +112,6 @@ def package(recipe, srcdir, builddir, pkgdir, result):
     return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 
-def clone_git(srcdir, url, branch, result):
-    '''clone source using git'''
-    def git(*args):
-        '''git wrapper'''
-        from subprocess import check_call
-        return check_call(['git'] + list(args)) == os.EX_OK
-
-    def git2(*args):
-        '''git wrapper2'''
-        from subprocess import check_output
-        return check_output(['git'] + list(args))
-
-    if not branch:
-        branch = 'master'
-
-    oldcommit = ''
-    if os.path.isdir(os.path.join(srcdir, '.git')):
-        os.chdir(srcdir)
-        oldcommit = git2('rev-parse', 'HEAD').strip().decode('UTF-8')
-        if not git('fetch', '-f', '-u', 'origin', '{}:{}'.format(branch, branch)):
-            raise DownloadException('git fetch failed')
-        if not git('checkout', '-f', '{}'.format(branch)):
-            raise DownloadException('git checkout failed')
-    elif not git('clone', '--depth', '1', '-b', branch, url, srcdir):
-        raise DownloadException('git clone failed')
-
-    os.chdir(srcdir)
-    result['commit'] = git2('rev-parse', 'HEAD').strip().decode('UTF-8')
-    result['description'] = git2('log', '-1', '--pretty=%B').strip().decode('UTF-8')
-
-    if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
-        raise NothingToDoException('There is nothing to build')
-
-
-def clone_hg(srcdir, url, branch, result):
-    '''clone source using hg'''
-    def hg(*args):
-        '''hg wrapper'''
-        # pylint: disable=invalid-name
-        from subprocess import check_call
-        return check_call(['hg'] + list(args)) == os.EX_OK
-
-    def hg2(*args):
-        '''hg wrapper2'''
-        from subprocess import check_output
-        return check_output(['hg'] + list(args))
-
-    if not branch:
-        branch = 'default'
-
-    oldcommit = ''
-    if os.path.isdir(os.path.join(srcdir, '.hg')):
-        os.chdir(srcdir)
-        oldcommit = hg2('tip', '--quiet').strip().decode('UTF-8')
-        if not hg('pull'):
-            raise DownloadException('hg pull failed')
-        if not hg('update', '-C', branch):
-            raise DownloadException('hg update failed')
-    elif not hg('clone', '-b', branch, url, srcdir):
-        raise DownloadException('hg clone failed')
-
-    os.chdir(srcdir)
-    result['commit'] = hg2('tip', '--quiet').strip().decode('UTF-8')
-    result['description'] = hg2('log', '-l1', '--template', '{desc}').decode('UTF-8')
-
-    if os.path.exists(os.path.join(srcdir, '.buildhck_built')) and result['commit'] == oldcommit:
-        raise NothingToDoException('There is nothing to build')
-
-
 def download(recipe, srcdir, result):
     '''download recipe'''
     proto = ''
@@ -210,18 +136,14 @@ def download(recipe, srcdir, result):
         if branch:
             result['branch'] = branch
 
-    if proto == 'git':
+    try:
+        protocol = import_module('protocols.{}'.format(proto))
+    except ImportError:
+        raise RecipeException('Unknown protocol: {}'.format(proto))
+    else:
         if not branch:
-            result['branch'] = 'master'
-        clone_git(srcdir, url, branch, result)
-        return
-    if proto == 'hg':
-        if not branch:
-            result['branch'] = 'default'
-        clone_hg(srcdir, url, branch, result)
-        return
-
-    raise RecipeException('Unknown protocol: {}'.format(proto))
+            result['branch'] = protocol.DEFAULT_BRANCH
+        protocol.clone(srcdir, url, branch, result)
 
 
 def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
