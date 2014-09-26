@@ -24,7 +24,9 @@ ACCEPT = ['text/html', 'application/json']
 
 STUSKEYS = ['build', 'test', 'package']
 
-BUILDJSONMDL = {'client': 'unknown client', 'commit': 'unknown commit', 'description': '',
+BUILDJSONMDL = {'upstream': '',
+                'client': 'unknown client',
+                'commit': 'unknown commit', 'description': '',
                 'build': {'status': -1, 'log': ''},
                 'test': {'status': -1, 'log': ''},
                 'package': {'status': -1, 'log': '', 'zip': ''},
@@ -289,6 +291,7 @@ def save_build(project, branch, system, data):
     metadata['client'] = data['client']
     metadata['commit'] = data['commit']
     metadata['description'] = data['description']
+    metadata['upstream'] = data['upstream']
 
     posthook = {}
     posthook['github'] = check_github_posthook(data, metadata)
@@ -363,6 +366,7 @@ def got_build(project=None, branch=None, system=None):
 
     if data is None or not validate_dict(data, BUILDJSONMDL) or not validate_status_codes(data):
         abort(400, 'Bad JSON, expected: {' \
+               '"upstream":"upstream url", ' \
                '"client":"client name (computer)", ' \
                '"commit":"commit sha", ' \
                '"description":"commit description", ' \
@@ -596,7 +600,7 @@ def get_projects():
 
     projects = []
     for project in os.listdir(SETTINGS['builds_directory']):
-        projects.append({'name': project, 'date': None, 'builds': []})
+        projects.append({'name': project, 'url': None, 'date': None, 'builds': []})
         projectpath = os.path.join(SETTINGS['builds_directory'], project)
         for branch in os.listdir(projectpath):
             branchpath = os.path.join(projectpath, branch)
@@ -606,6 +610,8 @@ def get_projects():
                     continue
                 if not projects[-1]['date'] or data['idate'] > projects[-1]['date']:
                     projects[-1]['date'] = data['idate']
+                    if 'upstream' in data:
+                        projects[-1]['url'] = data['upstream']
                 projects[-1]['builds'].append(data)
         if projects[-1]['date']:
             projects[-1]['builds'] = sorted(projects[-1]['builds'], key=lambda k: k['date'], reverse=True)

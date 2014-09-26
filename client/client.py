@@ -152,6 +152,7 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     download(recipe, srcdir, result)
 
     if 'prepare' in recipe.__dict__:
+        os.chdir(srcdir)
         prepare(recipe, srcdir, result['build'])
 
     s_mkdir(builddir)
@@ -227,6 +228,9 @@ def cook_recipe(recipe):
               'build': {'status': -1},
               'test': {'status': -1},
               'package': {'status': -1}}
+
+    if 'upstream' in recipe.__dict__ and recipe.upstream:
+        result['upstream'] = recipe.upstream
 
     if 'github' in recipe.__dict__ and recipe.github:
         result['github'] = recipe.github
