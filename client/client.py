@@ -240,12 +240,12 @@ def cook_recipe(recipe):
     try:
         perform_recipe(recipe, srcdir, builddir, pkgdir, result)
     except CookException as exc:
-        logging.error('{} build failed :: {}'.format(recipe.name, str(exc)))
+        logging.error('%s build failed :: %s', recipe.name, str(exc))
     except RecipeException as exc:
-        logging.error('{} recipe error :: {}'.format(recipe.name, str(exc)))
+        logging.error('%s recipe error :: %s', recipe.name, str(exc))
         send_build = False
     except DownloadException as exc:
-        logging.error('{} download failed :: {}'.format(recipe.name, str(exc)))
+        logging.error('%s download failed :: %s', recipe.name, str(exc))
         send_build = False
     except NothingToDoException:
         send_build = False
