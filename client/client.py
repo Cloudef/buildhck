@@ -113,6 +113,23 @@ def package(recipe, srcdir, builddir, pkgdir, result):
     return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 
+def analyze(recipe, srcdir, builddir, result):
+    '''analyze project'''
+    output = run_cmd_list_catch_output(recipe.analyze, result, {'$srcdir': srcdir, '$builddir': builddir}, False)
+
+    if 'analyze_re' in recipe.__dict__:
+        import re
+        exp = re.compile(recipe.analyze_re)
+        matches = 0
+        for line in output:
+            matches += len(exp.findall(line.decode('UTF-8')))
+        result['status'] = matches
+    else:
+        result['status'] = len(output)
+
+    return output
+
+
 def download(recipe, srcdir, result):
     '''download recipe'''
     proto = ''
@@ -172,6 +189,11 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     else:
         result['package']['status'] = -1
 
+    if 'analyze' in recipe.__dict__:
+        analyze(recipe, srcdir, builddir, result['analyze'])
+    else:
+        result['analyze']['status'] = -1
+
 
 def cleanup_build(builddir, srcdir, pkgdir):
     '''cleanup build'''
@@ -228,7 +250,8 @@ def cook_recipe(recipe):
     result = {'client': socket.gethostname(),
               'build': {'status': -1},
               'test': {'status': -1},
-              'package': {'status': -1}}
+              'package': {'status': -1},
+              'analyze': {'status': -1}}
 
     if 'upstream' in recipe.__dict__ and recipe.upstream:
         result['upstream'] = recipe.upstream
