@@ -30,6 +30,7 @@ def upload(recipe, result, server, key=None):
             logging.error("Client is broken, wrong syntax given to server")
         elif exc.code == 401:
             logging.error("Wrong key provided for project.")
+        logging.error("%s", exc.read())
         return False
     except URLError as exc:
         logging.error('Failed to reach a server.')
