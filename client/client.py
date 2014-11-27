@@ -74,7 +74,7 @@ def run_cmd_catch_output(cmd):
     return {'code': proc.returncode, 'output': log}
 
 
-def run_cmd_list_catch_output(cmd_list, result, expand):
+def run_cmd_list_catch_output(cmd_list, result, expand, throw_on_fail=True):
     '''run commands in command list and catch output and return code'''
     log = []
     for cmd in cmd_list:
@@ -84,12 +84,13 @@ def run_cmd_list_catch_output(cmd_list, result, expand):
             log.append(b'\n')
         log.append('>> {}:\n'.format(expanded).encode('UTF-8'))
         log.extend(ret['output'])
-        if ret['code'] != os.EX_OK:
+        if throw_on_fail and ret['code'] != os.EX_OK:
             result['status'] = 0
             result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
             raise CookException('command failed: {}'.format(expanded))
     result['status'] = 1 if cmd_list else -1
     result['log'] = b64encode(b''.join(log)).decode('UTF-8') if log else ''
+    return log
 
 
 def prepare(recipe, srcdir, result):
