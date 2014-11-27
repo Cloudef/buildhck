@@ -18,6 +18,7 @@ SETTINGS['builds_directory'] = 'builds'
 SETTINGS['server'] = 'http://localhost:9001'
 SETTINGS['auth'] = {}
 SETTINGS['cleanup'] = False
+SETTINGS['force'] = False
 
 
 class CookException(Exception):
@@ -226,6 +227,7 @@ def upload_build(recipe, result, srcdir):
 
 def cook_recipe(recipe):
     '''prepare && cook recipe'''
+    # pylint: disable=too-many-branches
 
     logging.info('Building %s from %s', recipe.name, recipe.source)
     logging.debug(recipe.build)
@@ -252,6 +254,11 @@ def cook_recipe(recipe):
               'test': {'status': -1},
               'package': {'status': -1},
               'analyze': {'status': -1}}
+
+    if SETTINGS['force']:
+        result['force'] = True
+        if os.path.exists(os.path.join(srcdir, '.buildhck_built')):
+            os.remove(os.path.join(srcdir, '.buildhck_built'))
 
     if 'upstream' in recipe.__dict__ and recipe.upstream:
         result['upstream'] = recipe.upstream
@@ -294,6 +301,8 @@ def main():
                         help='directory for builds')
     parser.add_argument('-c', '--cleanup', action='store_true', dest='cleanup',
                         help='cleanup build and package directories after build')
+    parser.add_argument('-f', '--force', action='store_true', dest='force',
+                        help='force build')
     parser.add_argument('-a', '--auth', dest='auth', type=json.loads,
                         help='set authentication token for upload')
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
