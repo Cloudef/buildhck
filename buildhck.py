@@ -276,7 +276,7 @@ def save_build(project, branch, system, data):
         if not data['force']:
             print('This commit is already built')
             return
-        delete_build(project, branch, system)
+        delete_build(project, branch, system, 'current')
 
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
