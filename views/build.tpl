@@ -1,6 +1,11 @@
 % if standalone:
 % rebase('html_base.tpl', title='buildhck :: {} - {}'.format(build['project'], build['system']), maxwidth=1024)
-<h2>{{build['project']}} - {{build['system']}}</h2>
+<h2><a href="{{build['upstream']}}">{{build['project']}} - {{build['system']}}</a></h2>
+% end
+
+% if standalone:
+<a href='/'>index</a>
+<a style='float:right;' href='/'>index</a>
 % end
 
 <div class='build'>
@@ -15,8 +20,9 @@
 
    % itr = 0
    % for status in STUSKEYS:
-      <a href="{{build['url'][itr]}}">{{status}}
-      <label class="{{build['status'][itr]}}">{{build['status'][itr]}}</label></a>
+      % css_class = 'SKIP' if status == 'analyze' else build[status]['result']
+      <a href="{{build[status]['url']}}">{{status}}
+      <label class="{{css_class}}">{{build[status]['result']}}</label></a>
       % itr += 1
    % end
 

@@ -22,14 +22,16 @@ SETTINGS['port'] = 9001
 
 ACCEPT = ['text/html', 'application/json']
 
-STUSKEYS = ['build', 'test', 'package']
+STUSKEYS = ['build', 'test', 'package', 'analyze']
 
 BUILDJSONMDL = {'upstream': '',
                 'client': 'unknown client',
                 'commit': 'unknown commit', 'description': '',
+                'force': False,
                 'build': {'status': -1, 'log': ''},
                 'test': {'status': -1, 'log': ''},
                 'package': {'status': -1, 'log': '', 'zip': ''},
+                'analyze': {'status': -1, 'log': ''},
                 'github': {'user': '', 'repo': ''}}
 
 FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
@@ -271,8 +273,10 @@ def save_build(project, branch, system, data):
 
     metadata = metadata_for_build(project, branch, system, 'current')
     if 'commit' in metadata and metadata['commit'] == data['commit']:
-        print('This commit is already built')
-        return
+        if not data['force']:
+            print('This commit is already built')
+            return
+        delete_build(project, branch, system)
 
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
@@ -302,15 +306,15 @@ def save_build(project, branch, system, data):
 
         metadata[key] = {'status': value['status']}
 
-        if value['log']:
+        if 'log' in value and value['log']:
             text = remove_control_characters(b64decode(value['log'].encode('UTF-8')).decode('UTF-8'))
             buildlog = bz2.compress(text.encode('UTF-8'))
             with open(os.path.join(buildpath, '{}-log.bz2'.format(key)), 'wb') as fle:
                 fle.write(buildlog)
 
-        if key == 'package' and value['zip']:
+        if 'zip' in value and value['zip']:
             buildzip = b64decode(value['zip'].encode('UTF-8'))
-            with open(os.path.join(buildpath, 'package.zip'), 'wb') as fle:
+            with open(os.path.join(buildpath, '{}.zip'.format(key)), 'wb') as fle:
                 fle.write(buildzip)
 
     with open(os.path.join(buildpath, 'metadata.bz2'), 'wb') as fle:
@@ -336,7 +340,7 @@ def validate_dict(dictionary, model):
 def validate_status_codes(dictionary):
     '''validate status codes in dictionary'''
     for key, value in dictionary.items():
-        if key not in STUSKEYS:
+        if key == 'analyze' or key not in STUSKEYS:
             continue
         if -1 < value['status'] > 1:
             return False
@@ -365,17 +369,20 @@ def got_build(project=None, branch=None, system=None):
         init_dict_using_model(data, BUILDJSONMDL)
 
     if data is None or not validate_dict(data, BUILDJSONMDL) or not validate_status_codes(data):
-        abort(400, 'Bad JSON, expected: {' \
-               '"upstream":"upstream url", ' \
-               '"client":"client name (computer)", ' \
-               '"commit":"commit sha", ' \
-               '"description":"commit description", ' \
-               '"build":{status:-1/0/1, log:"base64"}, ' \
-               '"test":{status:-1/0/1, log:"base64"}, ' \
-               '"package":{"status":-1/0/1, "log":"base64", "zip":"base64"},' \
-               '"github":{"user":"", "repo":""}' \
+        abort(400, 'Bad JSON, expected: {\n' \
+               '"upstream":"upstream url",\n' \
+               '"client":"client name (computer)",\n' \
+               '"commit":"commit sha",\n' \
+               '"force": true/false,\n' \
+               '"description":"commit description",\n' \
+               '"build":{status:-1/0/1, log:"base64"},\n' \
+               '"test":{status:-1/0/1, log:"base64"},\n' \
+               '"package":{"status":-1/0/1, "log":"base64", "zip":"base64"},\n' \
+               '"analyze":{"status":-1/0/1, "log":"base64"},\n' \
+               '"github":{"user":"", "repo":""}\n' \
                '}\n' \
                'status -1 == skipped\nstatus  0 == failed\nstatus  1 == OK\n' \
+               'force replaces build if already submitted\n' \
                'logs should be base64 encoded\n' \
                'zip package should be base64 encoded\n' \
                'specify github for post-hook issues\n')
@@ -468,17 +475,18 @@ def absolute_link(relative, https=False):
         return '#'
     return '{}://{}/{}'.format('https' if https else 'http', host, relative)
 
-def status_for_metadata(metadata):
-    '''get status array for metadata'''
-    status = [SCODEMAP[metadata['build']['status']],
-              SCODEMAP[metadata['test']['status']],
-              SCODEMAP[metadata['package']['status']]]
-    return status
+def parse_status_for_metadata(metadata):
+    '''parse human readable result for status'''
+    for key in STUSKEYS:
+        if key == 'analyze' and metadata[key]['status'] >= 0:
+            metadata[key]['result'] = str(metadata[key]['status'])
+        else:
+            metadata[key]['result'] = SCODEMAP[metadata[key]['status']]
 
 def failure_for_metadata(metadata):
     '''get failure status for metadata'''
     for key, value in metadata.items():
-        if key not in STUSKEYS:
+        if key == 'analyze' or key not in STUSKEYS:
             continue
         if value['status'] == 0:
             return True
@@ -493,9 +501,9 @@ def fsdate_for_metadata(metadata):
     date = date_for_metadata(metadata)
     return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f")
 
-def status_for_build(project, branch, system, fsdate):
-    '''get status array for build'''
-    return status_for_metadata(metadata_for_build(project, branch, system, fsdate))
+def parse_status_for_build(project, branch, system, fsdate):
+    '''parse human readable result for build'''
+    return parse_status_for_metadata(metadata_for_build(project, branch, system, fsdate))
 
 def failure_for_build(project, branch, system, fsdate):
     '''get failure status for build'''
@@ -509,17 +517,15 @@ def fsdate_for_build(project, branch, system, fsdate):
     '''get fsdate for build'''
     return fsdate_for_metadata(metadata_for_build(project, branch, system, fsdate))
 
-def links_for_build(project, branch, system, fsdate):
+def parse_links_for_build(project, branch, system, fsdate, metadata):
     '''get status links array for build'''
-    url = ['#', '#', '#']
     systempath = os.path.join(SETTINGS['builds_directory'], project, branch, system, fsdate)
-    if os.path.exists(os.path.join(systempath, 'build-log.bz2')):
-        url[0] = quote('/build/{}/{}/{}/{}/build-log.txt'.format(project, branch, system, fsdate))
-    if os.path.exists(os.path.join(systempath, 'test-log.bz2')):
-        url[1] = quote('/build/{}/{}/{}/{}/test-log.txt'.format(project, branch, system, fsdate))
-    if os.path.exists(os.path.join(systempath, 'package-log.bz2')):
-        url[2] = quote('/build/{}/{}/{}/{}/package-log.txt'.format(project, branch, system, fsdate))
-    return url
+
+    for key in STUSKEYS:
+        if os.path.exists(os.path.join(systempath, '{}-log.bz2'.format(key))):
+            metadata[key]['url'] = quote('/build/{}/{}/{}/{}/{}-log.txt'.format(project, branch, system, fsdate, key))
+        else:
+            metadata[key]['url'] = '#'
 
 def status_image_link_for_build(project, branch, system, fsdate):
     '''get status image for build'''
@@ -576,8 +582,9 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
     metadata['branch'] = branch
     metadata['systemimage'] = icon_for_system(system)
     metadata['statusimage'] = status_image_link_for_build(project, branch, system, fsdate)
-    metadata['status'] = status_for_metadata(metadata)
-    metadata['url'] = links_for_build(project, branch, system, fsdate)
+
+    parse_status_for_metadata(metadata)
+    parse_links_for_build(project, branch, system, fsdate, metadata)
 
     if get_history:
         metadata['history'] = []

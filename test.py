@@ -89,6 +89,7 @@ class TestBuildFunctions(unittest.TestCase):
     def test_send(self):
         """test build data send"""
         assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest') == True
+        assert send_build({'force': True, 'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest') == True
         assert send_build({'client': 'unittest', 'build': {'status': 'notint'}, 'test': 0}, 'unittest', 'unittest', 'unittest') == False
         assert send_build({'client': 'unittest', 'build': {'status': 2}, 'test': {'status': 2}}, 'unittest', 'unittest', 'unittest') == False
         assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, '/;:#%-\\', 'unittest', 'unittest') == False
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     else:
         try:
             FLE = open(os.devnull, 'w')
-            subprocess.call(['python3', 'buildhck.py', '-b', 'testbuilds', '-p', '7357'], stdout=FLE, stderr=FLE)
+            subprocess.call(['python3', 'buildhck.py', '-b', 'testbuilds', '-p', '7357']) # stdout=FLE, stderr=FLE)
         except KeyboardInterrupt:
             pass
         finally:
