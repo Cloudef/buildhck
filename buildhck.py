@@ -574,6 +574,10 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
     if not date:
         return None
 
+    for key in STUSKEYS:
+        if key not in metadata:
+            metadata[key] = {'status': -1}
+
     metadata['project'] = project
     metadata['fsdate'] = fsdate
     metadata['idate'] = date
