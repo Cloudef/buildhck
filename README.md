@@ -52,7 +52,13 @@ logs and files should be base64 encoded
 specify github for post-hook issues
 ```
 
+The data should be submitted to `/build/<project name>/<branch name>/<system name>`
+
 Buildhck is still under development so this format most likely will change.
+
+Builds will be stored in 'builds' directory in current working directory.
+The file structure is `project/branch/system/{current,timestamp}`
+You may manually remove directories to remove builds or projects from buildhck.
 
 Github integration needs api token server side. See the authorization.def.py.
 
