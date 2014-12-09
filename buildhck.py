@@ -373,18 +373,17 @@ def got_build(project=None, branch=None, system=None):
                '"upstream":"upstream url",\n' \
                '"client":"client name (computer)",\n' \
                '"commit":"commit sha",\n' \
-               '"force": true/false,\n' \
+               '"force":true/false,\n' \
                '"description":"commit description",\n' \
-               '"build":{status:-1/0/1, log:"base64"},\n' \
-               '"test":{status:-1/0/1, log:"base64"},\n' \
+               '"build":{"status":-1/0/1, "log":"base64"},\n' \
+               '"test":{"status":-1/0/1, "log":"base64"},\n' \
                '"package":{"status":-1/0/1, "log":"base64", "zip":"base64"},\n' \
-               '"analyze":{"status":-1/0/1, "log":"base64"},\n' \
-               '"github":{"user":"", "repo":""}\n' \
+               '"analyze":{"status":number of warnings, "log":"base64"},\n' \
+               '"github":{"user":"github user", "repo":"github repository"}\n' \
                '}\n' \
                'status -1 == skipped\nstatus  0 == failed\nstatus  1 == OK\n' \
-               'force replaces build if already submitted\n' \
-               'logs should be base64 encoded\n' \
-               'zip package should be base64 encoded\n' \
+               'force replaces build if already submitted for the commit\n' \
+               'logs and files should be base64 encoded\n' \
                'specify github for post-hook issues\n')
 
     save_build(project, branch, system, data)
