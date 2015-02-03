@@ -19,6 +19,7 @@ SETTINGS['server'] = 'http://localhost:9001'
 SETTINGS['auth'] = {}
 SETTINGS['cleanup'] = False
 SETTINGS['force'] = False
+SETTINGS['recipe'] = None
 
 
 class CookException(Exception):
@@ -300,6 +301,8 @@ def main():
                         help='buildhck server url')
     parser.add_argument('-b', '--buildsdir', dest='builds_directory',
                         help='directory for builds')
+    parser.add_argument('-r', '--recipe', dest='recipe',
+                        help='build single recipe in recipes directory')
     parser.add_argument('-c', '--cleanup', action='store_true', dest='cleanup',
                         help='cleanup build and package directories after build')
     parser.add_argument('-f', '--force', action='store_true', dest='force',
@@ -326,11 +329,15 @@ def main():
         if args.__dict__.get(key):
             SETTINGS[key] = args.__dict__[key]
 
-    for module in os.listdir('recipes'):
-        if module.find("_recipe.py") == -1:
-            continue
-        modulebase = os.path.splitext(module)[0]
+    if SETTINGS['recipe'] is not None:
+        modulebase = os.path.splitext("{}_recipe.py".format(SETTINGS['recipe']))[0]
         cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
+    else:
+        for module in os.listdir('recipes'):
+            if module.find("_recipe.py") == -1:
+                continue
+            modulebase = os.path.splitext(module)[0]
+            cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
 
 if __name__ == '__main__':
     STARTDIR = os.path.dirname(os.path.abspath(__file__))
