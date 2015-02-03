@@ -220,7 +220,8 @@ def upload_build(recipe, result, srcdir):
         key = None
 
     if service.upload(recipe, result, SETTINGS['server'], key):
-        touch(os.path.join(srcdir, '.buildhck_built'))
+        if os.path.exists(srcdir):
+            touch(os.path.join(srcdir, '.buildhck_built'))
         logging.info('Build successfully sent to server.')
     # the error already got displayed
 
