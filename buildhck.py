@@ -713,5 +713,6 @@ if __name__ == "__main__":
 else:
     # pylint: disable=invalid-name
     application = bottle.default_app()
+    application.catchall = False
 
 #  vim: set ts=8 sw=4 tw=0 :
