@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 # pylint: disable=line-too-long
 '''automatic build system client/server framework'''
 
-import lib.bottle as bottle
-from lib.bottle import BaseTemplate, template
-from lib.bottle import static_file, response, request, redirect, route, abort, run
-from lib.header import supported_request
+import bottle
+from bottle import BaseTemplate, template
+from bottle import static_file, response, request, redirect, route, abort
+from buildhck.header import supported_request
 from base64 import b64decode
 from datetime import datetime
 from urllib.parse import quote
@@ -38,19 +37,7 @@ FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
 
 SCODEMAP = {-1: 'SKIP', 0: 'FAIL', 1: 'OK'}
 
-try:
-    # pylint: disable=import-error
-    import authorization
-    if 'auth' in authorization.__dict__:
-        SETTINGS['auth'] = authorization.key
-    if 'github' in authorization.__dict__:
-        SETTINGS['github'] = authorization.github
-    if 'server' in authorization.__dict__:
-        SETTINGS['server'] = authorization.server
-    if 'port' in authorization.__dict__:
-        SETTINGS['port'] = authorization.port
-except ImportError as exc:
-    print("Authorization module was not loaded!")
+# FIXME: load yaml config via xdg basedir
 
 def is_json_request():
     '''check if the request is json'''
@@ -682,37 +669,16 @@ def index():
 @route('/favicon.ico')
 def get_favicon():
     '''fetch favicon'''
-    return static_file('favicon.ico', root='.')
-
-def main():
-    '''main method'''
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option('-s', '--server', dest='server',
-                      help='bottle.py WSGI server backend')
-    parser.add_option('-p', '--port', dest='port',
-                      help='server port')
-    parser.add_option('-b', '--buildsdir', dest='builds_directory',
-                      help='directory for builds')
-    optargs = parser.parse_args()
-
-    for key in SETTINGS.keys():
-        if optargs[0].__dict__.get(key):
-            SETTINGS[key] = optargs[0].__dict__[key]
-
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    run(server=SETTINGS['server'], host='0.0.0.0', port=SETTINGS['port'])
+    return static_file('favicon.ico', root='media/')
 
 def setup():
     '''setup method'''
     BaseTemplate.defaults['STUSKEYS'] = STUSKEYS
 
 setup()
-if __name__ == "__main__":
-    main()
-else:
-    # pylint: disable=invalid-name
-    application = bottle.default_app()
-    application.catchall = False
+
+# pylint: disable=invalid-name
+application = bottle.default_app()
+application.catchall = False
 
 #  vim: set ts=8 sw=4 tw=0 :
