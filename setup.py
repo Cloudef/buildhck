@@ -5,8 +5,7 @@ from setuptools import setup, find_packages
 setup(
     name='buildhck',
     url='https://github.com/Cloudef/buildhck',
-    #maintainer='Zack Buhman',
-    #maintainer_email='zack@buhman.org',
+    maintainer='Buildhck Team',
     include_package_data=True,
     packages=find_packages()
 )

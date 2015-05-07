@@ -5,19 +5,13 @@ import bottle
 from bottle import BaseTemplate, template
 from bottle import static_file, response, request, redirect, route, abort
 from buildhck.header import supported_request
+from buildhck import config
 from base64 import b64decode
 from datetime import datetime
 from urllib.parse import quote
 import os, re, bz2, json
 
 bottle.BaseRequest.MEMFILE_MAX = 4096 * 1024
-
-SETTINGS = {}
-SETTINGS['builds_directory'] = 'builds'
-SETTINGS['github'] = {}
-SETTINGS['auth'] = {}
-SETTINGS['server'] = 'auto'
-SETTINGS['port'] = 9001
 
 ACCEPT = ['text/html', 'application/json']
 
@@ -37,13 +31,9 @@ FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
 
 SCODEMAP = {-1: 'SKIP', 0: 'FAIL', 1: 'OK'}
 
-# FIXME: load yaml config via xdg basedir
-
 def is_json_request():
     '''check if the request is json'''
-    if 'Accept' in request.headers and supported_request(request.headers['Accept'], ACCEPT) == 'application/json':
-        return True
-    return False
+    return 'Accept' in request.headers and supported_request(request.headers['Accept'], ACCEPT) == 'application/json'
 
 def dump_json(dic):
     '''dump json data'''
@@ -73,11 +63,11 @@ def is_authenticated_for_project(project):
     validate_build(project)
 
     # allow if our dict is empty
-    if not SETTINGS['auth']:
+    if not config.config['auth']:
         return True
 
     key = ''
-    auth = SETTINGS['auth']
+    auth = config.config['auth']
     if 'Authorization' in request.headers:
         key = request.headers['Authorization']
 
@@ -104,13 +94,13 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
     '''create/comment/delete github issue'''
     # pylint: disable=too-many-arguments
 
-    if not SETTINGS['github']:
+    if not config.config['github']:
         print("no github_token specified, won't handle issue request")
-        return None
+        return
 
     if close and not issueid:
         print("can't close github issue without id")
-        return None
+        return
 
     from urllib.request import Request, urlopen
     from urllib.error import URLError, HTTPError
@@ -132,7 +122,7 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
 
     handle.add_header('Content-Type', 'application/json')
     handle.add_header('Accept', 'application/vnd.github.v3+json')
-    handle.add_header('Authorization', 'token {}'.format(SETTINGS['github']))
+    handle.add_header('Authorization', 'token {}'.format(config.config['github']))
 
     srvdata = None
     try:
@@ -141,14 +131,14 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
         print("The server couldn't fulfill the request.")
         print('Error code: ', exc.code)
         print(exc.read())
-        return None
+        return
     except URLError as exc:
         print('Failed to reach a server.')
         print('Reason: ', exc.reason)
-        return None
+        return
 
     if not srvdata:
-        return None
+        return
 
     if not issueid:
         issueid = json.loads(srvdata.readall().decode('UTF-8'))['number']
@@ -196,7 +186,7 @@ def check_github_posthook(data, metadata):
 def build_exists(project, branch=None, system=None, fsdate=None):
     '''check if build dir exists'''
     validate_build(project, branch, system)
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
+    buildpath = os.path.join(config.config['builds_directory'], project)
     if branch:
         buildpath = os.path.join(buildpath, branch)
     if system:
@@ -212,7 +202,7 @@ def delete_build(project, branch=None, system=None, fsdate=None):
     validate_build(project, branch, system)
 
     parentpath = None
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
+    buildpath = os.path.join(config.config['builds_directory'], project)
     if branch:
         parentpath = buildpath
         buildpath = os.path.join(buildpath, branch)
@@ -267,8 +257,8 @@ def save_build(project, branch, system, data):
 
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
-    s_mkdir(SETTINGS['builds_directory'])
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
+    s_mkdir(config.config['builds_directory'])
+    buildpath = os.path.join(config.config['builds_directory'], project)
     s_mkdir(buildpath)
     buildpath = os.path.join(buildpath, branch)
     s_mkdir(buildpath)
@@ -305,7 +295,7 @@ def save_build(project, branch, system, data):
                 fle.write(buildzip)
 
     with open(os.path.join(buildpath, 'metadata.bz2'), 'wb') as fle:
-        if SETTINGS['github'] and posthook['github']:
+        if config.config['github'] and posthook['github']:
             handle_github(project, branch, system, fsdate, metadata)
         fle.write(bz2.compress(json.dumps(metadata).encode('UTF-8')))
         if os.path.lexists(currentpath):
@@ -418,7 +408,7 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
     validate_build(project, branch, system)
 
     ext = os.path.splitext(bfile)[1]
-    path = os.path.join(SETTINGS['builds_directory'], project)
+    path = os.path.join(config.config['builds_directory'], project)
     path = os.path.join(path, branch)
     path = os.path.join(path, system)
     path = os.path.join(path, fsdate)
@@ -505,7 +495,7 @@ def fsdate_for_build(project, branch, system, fsdate):
 
 def parse_links_for_build(project, branch, system, fsdate, metadata):
     '''get status links array for build'''
-    systempath = os.path.join(SETTINGS['builds_directory'], project, branch, system, fsdate)
+    systempath = os.path.join(config.config['builds_directory'], project, branch, system, fsdate)
 
     for key in STUSKEYS:
         if os.path.exists(os.path.join(systempath, '{}-log.bz2'.format(key))):
@@ -521,7 +511,7 @@ def status_image_link_for_build(project, branch, system, fsdate):
 def metadata_for_build(project, branch, system, fsdate):
     '''get metadata for build'''
     metadata = {}
-    path = os.path.join(SETTINGS['builds_directory'], project, branch, system, fsdate, 'metadata.bz2')
+    path = os.path.join(config.config['builds_directory'], project, branch, system, fsdate, 'metadata.bz2')
     if os.path.exists(path):
         try:
             bz2data = bz2.BZ2File(path).read()
@@ -555,10 +545,10 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
     else:
         metadata = metadata_for_build(project, branch, system, fsdate)
     if not metadata:
-        return None
+        return
     date = date_for_metadata(metadata)
     if not date:
-        return None
+        return
 
     for key in STUSKEYS:
         if key not in metadata:
@@ -578,7 +568,7 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
     if get_history:
         metadata['history'] = []
-        systempath = os.path.join(SETTINGS['builds_directory'], project, branch, system)
+        systempath = os.path.join(config.config['builds_directory'], project, branch, system)
         current = os.readlink(os.path.join(systempath, 'current'))
         for old_fsdate in sorted(os.listdir(systempath), reverse=True):
             if old_fsdate == fsdate or old_fsdate == current or old_fsdate == 'current':
@@ -592,13 +582,13 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
 def get_projects():
     '''get projects for index page'''
-    if not os.path.isdir(SETTINGS['builds_directory']):
+    if not os.path.isdir(config.config['builds_directory']):
         return []
 
     projects = []
-    for project in os.listdir(SETTINGS['builds_directory']):
+    for project in os.listdir(config.config['builds_directory']):
         projects.append({'name': project, 'url': None, 'date': None, 'builds': []})
-        projectpath = os.path.join(SETTINGS['builds_directory'], project)
+        projectpath = os.path.join(config.config['builds_directory'], project)
         for branch in os.listdir(projectpath):
             branchpath = os.path.join(projectpath, branch)
             for system in os.listdir(branchpath):
