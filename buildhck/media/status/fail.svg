@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="fail" xmlns="http://www.w3.org/2000/svg" height="6mm" width="32mm" version="1.1" viewBox="0 0 80 15">
+  <rect id="r1" height="15" width="80" y="0" x="0" fill="#747474"/>
+  <rect id="r2" height="13" width="78" y="1" x="1" fill="#fff"/>
+  <rect id="r3" height="11" width="23" y="2" x="2" fill="#c33"/>
+  <rect id="r4" height="11" width="52" y="2" x="26" fill="#747474"/>
+  <text id="t1" font-family="monospace" font-size="8" y="10.5" x="3.5" fill="#fff">FAIL</text>
+  <text id="t2" font-family="monospace" font-size="8" y="10.5" x="32" fill="#fff">BUILDHCK</text>
+</svg>

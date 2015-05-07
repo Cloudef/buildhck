@@ -426,12 +426,12 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
     if not os.path.exists(path):
         abort(404, "Build does not exist.")
 
-    if bfile == 'build-status.png':
+    if bfile == 'status.svg':
         response.set_header('Cache-control', 'no-cache')
         response.set_header('Pragma', 'no-cache')
         if not failure_for_build(project, branch, system, fsdate):
-            return static_file('ok.png', root='media/status/')
-        return static_file('fail.png', root='media/status/')
+            return static_file('ok.svg', root='media/status/')
+        return static_file('fail.svg', root='media/status/')
     elif ext == '.zip':
         return static_file(bfile, root=path)
     elif ext == '.bz2':
@@ -516,7 +516,7 @@ def parse_links_for_build(project, branch, system, fsdate, metadata):
 def status_image_link_for_build(project, branch, system, fsdate):
     '''get status image for build'''
     import time
-    return '{}?{}'.format(quote('/build/{}/{}/{}/{}/build-status.png'.format(project, branch, system, fsdate)), time.time())
+    return '{}?{}'.format(quote('/build/{}/{}/{}/{}/status.svg'.format(project, branch, system, fsdate)), time.time())
 
 def metadata_for_build(project, branch, system, fsdate):
     '''get metadata for build'''
@@ -533,15 +533,15 @@ def metadata_for_build(project, branch, system, fsdate):
 
 def icon_for_system(system):
     '''get link to icon for system'''
-    icon = 'platform/unknown.png'
+    icon = 'platform/unknown.svg'
     if 'linux' in system.lower():
-        icon = '/platform/linux.png'
+        icon = '/platform/linux.svg'
     if 'darwin' in system.lower():
-        icon = '/platform/darwin.png'
+        icon = '/platform/darwin.svg'
     if 'win32' in system.lower() or 'win64' in system.lower():
-        icon = '/platform/windows.png'
+        icon = '/platform/windows.svg'
     if 'bsd' in system.lower():
-        icon = '/platform/bsd.png'
+        icon = '/platform/bsd.svg'
     return icon
 
 def get_build_data(project, branch, system, fsdate, get_history=True, in_metadata=None):

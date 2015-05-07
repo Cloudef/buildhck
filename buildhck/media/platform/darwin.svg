@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" height="4.2mm" width="4mm" version="1.1" viewBox="0 0 14.1 14.7">
+ <path d="m0 1.7h7.7l-1.5 3.3-0.38 3.1 1.9 0.38v4.2h-7.7z" fill="#4d66cc"/>
+ <path d="m7.7 1.7h6.5v11h-6.5v-4.2h-1.9l0.52-3.5z" fill="#89a1d4"/>
+ <g stroke-width=".65" fill="none">
+  <path d="m7.7 10c2.3 0 3.4 0 4.6-0.77" stroke="#000"/>
+  <path d="m2.7 9.6c1.1 0.4 3 0.4 5 0.4" stroke="#09098f"/>
+  <path d="m3.8 3.6v1.7" stroke="#09098f"/>
+  <path d="m10 3.6v1.7" stroke="#000"/>
+  <path d="m8.8 0.16c-1.1 2-3.1 4.8-3.1 8.2h1.9c0 1.9 0 4.2 1.1 6.1" stroke="#000"/>
+ </g>
+</svg>
