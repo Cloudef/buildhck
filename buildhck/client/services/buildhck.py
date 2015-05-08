@@ -13,6 +13,7 @@ def upload(recipe, result, server, key=None):
     '''upload build'''
     branch = result.pop('branch', 'unknown')
 
+    # FIXME: use urljoin
     request = Request('{}/build/{}/{}/{}'.format(
         server, quote(recipe.name), quote(branch),
         quote('{} {}'.format(sys.platform, platform.machine()))))

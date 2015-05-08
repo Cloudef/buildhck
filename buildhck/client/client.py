@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # pylint: disable=line-too-long
 '''buildhck python client'''
 
@@ -8,19 +7,11 @@ import shlex
 from base64 import b64encode
 from importlib import import_module
 
-from protocols import DownloadException, NothingToDoException
+from buildhck.client.protocols import DownloadException, NothingToDoException
+from buildhck import config
 
 import logging
 logging.root.name = 'buildhck'
-
-SETTINGS = {}
-SETTINGS['builds_directory'] = 'builds'
-SETTINGS['server'] = 'http://localhost:9001'
-SETTINGS['auth'] = {}
-SETTINGS['cleanup'] = False
-SETTINGS['force'] = False
-SETTINGS['recipe'] = None
-
 
 class CookException(Exception):
     '''exception related to cooking, if this fails the failed data is sent'''
@@ -157,7 +148,7 @@ def download(recipe, srcdir, result):
             result['branch'] = branch
 
     try:
-        protocol = import_module('protocols.{}'.format(proto))
+        protocol = import_module('buildhck.client.protocols.{}'.format(proto))
     except ImportError:
         raise RecipeException('Unknown protocol: {}'.format(proto))
     else:
@@ -209,18 +200,18 @@ def cleanup_build(builddir, srcdir, pkgdir):
 def upload_build(recipe, result, srcdir):
     '''upload build'''
     try:
-        service = import_module('services.{}'.format('buildhck'))
+        service = import_module('buildhck.client.services.{}'.format('buildhck'))
     except ImportError:
         raise Exception('TODO')
 
     for name in [recipe.name, '']:
-        if name in SETTINGS['auth']:
-            key = SETTINGS['auth'][name]
+        if name in config.config['auth']:
+            key = config.config['auth'][name]
             break
     else:
         key = None
 
-    if service.upload(recipe, result, SETTINGS['server'], key):
+    if service.upload(recipe, result, config.config['serverurl'], key):
         if os.path.exists(srcdir):
             touch(os.path.join(srcdir, '.buildhck_built'))
         logging.info('Build successfully sent to server.')
@@ -239,16 +230,15 @@ def cook_recipe(recipe):
         logging.debug(recipe.package)
 
     os.chdir(STARTDIR)
-    s_mkdir(SETTINGS['builds_directory'])
-    projectdir = os.path.abspath(os.path.join(SETTINGS['builds_directory'], recipe.name))
+    projectdir = config.build_directory(recipe.name)
 
-    pkgdir = os.path.abspath(os.path.join(projectdir, 'pkg'))
-    srcdir = os.path.abspath(os.path.join(projectdir, 'src'))
+    pkgdir = os.path.join(projectdir, 'pkg')
+    srcdir = os.path.join(projectdir, 'src')
 
     if 'build_in_srcdir' in recipe.__dict__ and recipe.build_in_srcdir:
         builddir = srcdir
     else:
-        builddir = os.path.abspath(os.path.join(projectdir, 'build'))
+        builddir = os.path.join(projectdir, 'build')
 
     import socket
     result = {'client': socket.gethostname(),
@@ -257,7 +247,7 @@ def cook_recipe(recipe):
               'package': {'status': -1},
               'analyze': {'status': -1}}
 
-    if SETTINGS['force']:
+    if config.config.get('force'):
         result['force'] = True
         if os.path.exists(os.path.join(srcdir, '.buildhck_built')):
             os.remove(os.path.join(srcdir, '.buildhck_built'))
@@ -287,7 +277,7 @@ def cook_recipe(recipe):
         upload_build(recipe, result, srcdir)
 
     # cleanup build and pkg directory
-    if SETTINGS['cleanup']:
+    if config.config.get('cleanup'):
         cleanup_build(srcdir, builddir, pkgdir)
 
     os.chdir(STARTDIR)
@@ -297,7 +287,7 @@ def main():
     '''main method'''
     from argparse import ArgumentParser
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument('-s', '--server', dest='server',
+    parser.add_argument('-s', '--serverurl', dest='serverurl',
                         help='buildhck server url')
     parser.add_argument('-b', '--buildsdir', dest='builds_directory',
                         help='directory for builds')
@@ -316,34 +306,21 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='[%(name)s] [%(levelname)s]: %(message)s')
 
-    try:
-        import authorization
-        if 'key' in authorization.__dict__:
-            SETTINGS['auth'] = authorization.__dict__
-        if 'server' in authorization.__dict__:
-            SETTINGS['server'] = authorization.server
-    except ImportError:
-        logging.warn('Authorization module was not loaded!')
+    # FIXME: hack
+    global STARTDIR
+    STARTDIR = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(STARTDIR)
 
-    for key in SETTINGS.keys():
-        if args.__dict__.get(key):
-            SETTINGS[key] = args.__dict__[key]
+    config.config.update({k:v for k,v in vars(args).items() if v})
 
-    if SETTINGS['recipe'] is not None:
-        modulebase = os.path.splitext("{}_recipe.py".format(SETTINGS['recipe']))[0]
-        cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
+    if config.config.get('recipe'):
+        modulebase = os.path.splitext("{}_recipe.py".format(config.config['recipe']))[0]
+        cook_recipe(getattr(__import__("buildhck.client.recipes", fromlist=[modulebase]), modulebase))
     else:
         for module in os.listdir('recipes'):
             if module.find("_recipe.py") == -1:
                 continue
             modulebase = os.path.splitext(module)[0]
-            cook_recipe(getattr(__import__("recipes", fromlist=[modulebase]), modulebase))
-
-if __name__ == '__main__':
-    STARTDIR = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(STARTDIR)
-    main()
-else:
-    raise Exception('Should not be used as module')
+            cook_recipe(getattr(__import__("buildhck.client.recipes", fromlist=[modulebase]), modulebase))
 
 #  vim: set ts=8 sw=4 tw=0 :

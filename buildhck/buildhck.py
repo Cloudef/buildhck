@@ -1,24 +1,18 @@
-#!/usr/bin/env python3
 # pylint: disable=line-too-long
 '''automatic build system client/server framework'''
 
-import lib.bottle as bottle
-from lib.bottle import BaseTemplate, template
-from lib.bottle import static_file, response, request, redirect, route, abort, run
-from lib.header import supported_request
+import bottle
+from bottle import BaseTemplate, template as _template
+from bottle import static_file, response, request, redirect, route, abort
+from buildhck.header import supported_request
+from buildhck import config
 from base64 import b64decode
 from datetime import datetime
 from urllib.parse import quote
-import os, re, bz2, json
+import os, re, bz2, json, shutil
+from functools import partial
 
 bottle.BaseRequest.MEMFILE_MAX = 4096 * 1024
-
-SETTINGS = {}
-SETTINGS['builds_directory'] = 'builds'
-SETTINGS['github'] = {}
-SETTINGS['auth'] = {}
-SETTINGS['server'] = 'auto'
-SETTINGS['port'] = 9001
 
 ACCEPT = ['text/html', 'application/json']
 
@@ -38,25 +32,14 @@ FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
 
 SCODEMAP = {-1: 'SKIP', 0: 'FAIL', 1: 'OK'}
 
-try:
-    # pylint: disable=import-error
-    import authorization
-    if 'auth' in authorization.__dict__:
-        SETTINGS['auth'] = authorization.key
-    if 'github' in authorization.__dict__:
-        SETTINGS['github'] = authorization.github
-    if 'server' in authorization.__dict__:
-        SETTINGS['server'] = authorization.server
-    if 'port' in authorization.__dict__:
-        SETTINGS['port'] = authorization.port
-except ImportError as exc:
-    print("Authorization module was not loaded!")
+def rootpath(*args):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), *args)
+
+template = partial(_template, template_lookup=(rootpath('views'),))
 
 def is_json_request():
     '''check if the request is json'''
-    if 'Accept' in request.headers and supported_request(request.headers['Accept'], ACCEPT) == 'application/json':
-        return True
-    return False
+    return 'Accept' in request.headers and supported_request(request.headers['Accept'], ACCEPT) == 'application/json'
 
 def dump_json(dic):
     '''dump json data'''
@@ -86,11 +69,11 @@ def is_authenticated_for_project(project):
     validate_build(project)
 
     # allow if our dict is empty
-    if not SETTINGS['auth']:
+    if not config.config['auth']:
         return True
 
     key = ''
-    auth = SETTINGS['auth']
+    auth = config.config['auth']
     if 'Authorization' in request.headers:
         key = request.headers['Authorization']
 
@@ -106,24 +89,17 @@ def is_authenticated_for_project(project):
 
     return False
 
-def s_mkdir(sdir):
-    '''safe mkdir'''
-    if not os.path.exists(sdir):
-        os.mkdir(sdir)
-    if not os.path.isdir(sdir):
-        raise IOError("local path '{}' is not a directory".format(sdir))
-
 def github_issue(user, repo, subject, body, issueid=None, close=False):
     '''create/comment/delete github issue'''
     # pylint: disable=too-many-arguments
 
-    if not SETTINGS['github']:
+    if not config.config['github']:
         print("no github_token specified, won't handle issue request")
-        return None
+        return
 
     if close and not issueid:
         print("can't close github issue without id")
-        return None
+        return
 
     from urllib.request import Request, urlopen
     from urllib.error import URLError, HTTPError
@@ -145,7 +121,7 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
 
     handle.add_header('Content-Type', 'application/json')
     handle.add_header('Accept', 'application/vnd.github.v3+json')
-    handle.add_header('Authorization', 'token {}'.format(SETTINGS['github']))
+    handle.add_header('Authorization', 'token {}'.format(config.config['github']))
 
     srvdata = None
     try:
@@ -154,14 +130,14 @@ def github_issue(user, repo, subject, body, issueid=None, close=False):
         print("The server couldn't fulfill the request.")
         print('Error code: ', exc.code)
         print(exc.read())
-        return None
+        return
     except URLError as exc:
         print('Failed to reach a server.')
         print('Reason: ', exc.reason)
-        return None
+        return
 
     if not srvdata:
-        return None
+        return
 
     if not issueid:
         issueid = json.loads(srvdata.readall().decode('UTF-8'))['number']
@@ -206,34 +182,20 @@ def check_github_posthook(data, metadata):
                           'issueid': issueid}
     return True
 
-def build_exists(project, branch=None, system=None, fsdate=None):
+def build_exists(project, branch='', system='', fsdate=''):
     '''check if build dir exists'''
     validate_build(project, branch, system)
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
-    if branch:
-        buildpath = os.path.join(buildpath, branch)
-    if system:
-        buildpath = os.path.join(buildpath, system)
-    if fsdate:
-        buildpath = os.path.join(buildpath, fsdate)
+    buildpath = config.build_directory(project, branch, system, fsdate)
     return os.path.exists(buildpath)
 
-def delete_build(project, branch=None, system=None, fsdate=None):
+def delete_build(project, branch='', system='', fsdate=''):
     '''delete build'''
     # pylint: disable=too-many-branches
 
     validate_build(project, branch, system)
 
-    parentpath = None
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
-    if branch:
-        parentpath = buildpath
-        buildpath = os.path.join(buildpath, branch)
-    if system:
-        parentpath = buildpath
-        buildpath = os.path.join(buildpath, system)
+    buildpath = config.build_directory(project, branch, system)
     if fsdate:
-        parentpath = buildpath
         currentpath = os.path.join(buildpath, 'current')
         if fsdate == 'current':
             if os.path.lexists(currentpath):
@@ -241,10 +203,9 @@ def delete_build(project, branch=None, system=None, fsdate=None):
             else:
                 abort(404, 'Current build does not exist')
         buildpath = os.path.join(buildpath, fsdate)
+    parentpath, _ = os.path.split(buildpath)
     if not os.path.isdir(buildpath):
         return False
-
-    import shutil
     shutil.rmtree(buildpath)
 
     if fsdate and os.path.lexists(currentpath):
@@ -256,12 +217,11 @@ def delete_build(project, branch=None, system=None, fsdate=None):
             if latest != 'current':
                 os.symlink(latest, currentpath)
 
-    if fsdate and not os.listdir(parentpath):
-        delete_build(project, branch, system)
-    if system and not fsdate and not os.listdir(parentpath):
-        delete_build(project, branch)
-    if branch and not system and not os.listdir(parentpath):
-        delete_build(project)
+    while parentpath != config.build_directory():
+        if os.path.isdir(parentpath) and not os.listdir(parentpath):
+            os.rmdir(parentpath)
+        parentpath, _ = os.path.split(parentpath)
+
     return True
 
 def save_build(project, branch, system, data):
@@ -280,16 +240,13 @@ def save_build(project, branch, system, data):
 
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
-    s_mkdir(SETTINGS['builds_directory'])
-    buildpath = os.path.join(SETTINGS['builds_directory'], project)
-    s_mkdir(buildpath)
-    buildpath = os.path.join(buildpath, branch)
-    s_mkdir(buildpath)
-    buildpath = os.path.join(buildpath, system)
-    s_mkdir(buildpath)
+    buildpath = config.build_directory(project, branch, system)
+    if not os.path.isdir(buildpath):
+        os.makedirs(buildpath)
     currentpath = os.path.join(buildpath, 'current')
     buildpath = os.path.join(buildpath, fsdate)
-    s_mkdir(buildpath)
+    if not os.path.isdir(buildpath):
+        os.makedirs(buildpath)
 
     metadata['date'] = date.isoformat()
     metadata['client'] = data['client']
@@ -318,7 +275,7 @@ def save_build(project, branch, system, data):
                 fle.write(buildzip)
 
     with open(os.path.join(buildpath, 'metadata.bz2'), 'wb') as fle:
-        if SETTINGS['github'] and posthook['github']:
+        if config.config['github'] and posthook['github']:
             handle_github(project, branch, system, fsdate, metadata)
         fle.write(bz2.compress(json.dumps(metadata).encode('UTF-8')))
         if os.path.lexists(currentpath):
@@ -389,40 +346,18 @@ def got_build(project=None, branch=None, system=None):
     save_build(project, branch, system, data)
     return 'OK!'
 
+#FIXME: separate views
+
 @route('/build/<project>', ['DELETE'])
-def delete_project(project=None):
-    '''got project delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project):
-        abort(400, 'Project does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>', ['DELETE'])
-def delete_branch(project=None, branch=None):
-    '''got branch delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project, branch):
-        abort(400, 'Branch does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>/<system>', ['DELETE'])
-def delete_system(project=None, branch=None, system=None):
-    '''got branch delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project, branch, system):
-        abort(400, 'System does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>/<system>/<fsdate>', ['DELETE'])
-def delete_fsdate(project=None, branch=None, system=None, fsdate=None):
-    '''got branch delete request from client'''
+def delete_build_view(project, **kwargs):
+    '''got build delete request from client'''
     if not is_authenticated_for_project(project):
         abort(401, 'Not authorized.')
-    if not delete_build(project, branch, system, fsdate):
-        abort(400, 'System does not exist.')
+    if not delete_build(project, **kwargs):
+        abort(400, 'Build does not exist.')
     return 'OK!'
 
 @route('/build/<project>/<branch>/<system>/<fsdate>/<bfile>')
@@ -431,27 +366,24 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
     validate_build(project, branch, system)
 
     ext = os.path.splitext(bfile)[1]
-    path = os.path.join(SETTINGS['builds_directory'], project)
-    path = os.path.join(path, branch)
-    path = os.path.join(path, system)
-    path = os.path.join(path, fsdate)
+    path = config.build_directory(project, branch, system, fsdate)
 
     if not os.path.exists(path):
         abort(404, "Build does not exist.")
 
-    if bfile == 'build-status.png':
+    if bfile == 'status.svg':
         response.set_header('Cache-control', 'no-cache')
         response.set_header('Pragma', 'no-cache')
         if not failure_for_build(project, branch, system, fsdate):
-            return static_file('ok.png', root='media/status/')
-        return static_file('fail.png', root='media/status/')
+            return static_file('ok.svg', root=rootpath('media', 'status'))
+        return static_file('fail.svg', root=rootpath('media', 'status'))
     elif ext == '.zip':
-        return static_file(bfile, root=path)
+        return static_file(bfile, root=rootpath(path))
     elif ext == '.bz2':
-        return static_file(bfile, root=path)
+        return static_file(bfile, root=rootpath(path))
     elif ext == '.txt':
         response.content_type = 'text/plain'
-        path = os.path.join(path, bfile.replace('.txt', '.bz2'))
+        path = rootpath(path, bfile.replace('.txt', '.bz2'))
         if os.path.exists(path):
             return bz2.BZ2File(path).read()
 
@@ -465,7 +397,7 @@ def get_build_file_short(project=None, branch=None, system=None, bfile=None):
 @route('/platform/<bfile>')
 def get_platform_icon(bfile=None):
     '''get platform icon'''
-    return static_file(bfile, root='media/platform/')
+    return static_file(bfile, root=rootpath('media', 'platform'))
 
 def absolute_link(relative, https=False):
     '''turn relative link to absolute'''
@@ -518,7 +450,7 @@ def fsdate_for_build(project, branch, system, fsdate):
 
 def parse_links_for_build(project, branch, system, fsdate, metadata):
     '''get status links array for build'''
-    systempath = os.path.join(SETTINGS['builds_directory'], project, branch, system, fsdate)
+    systempath = config.build_directory(project, branch, system, fsdate)
 
     for key in STUSKEYS:
         if os.path.exists(os.path.join(systempath, '{}-log.bz2'.format(key))):
@@ -529,12 +461,12 @@ def parse_links_for_build(project, branch, system, fsdate, metadata):
 def status_image_link_for_build(project, branch, system, fsdate):
     '''get status image for build'''
     import time
-    return '{}?{}'.format(quote('/build/{}/{}/{}/{}/build-status.png'.format(project, branch, system, fsdate)), time.time())
+    return '{}?{}'.format(quote('/build/{}/{}/{}/{}/status.svg'.format(project, branch, system, fsdate)), time.time())
 
 def metadata_for_build(project, branch, system, fsdate):
     '''get metadata for build'''
     metadata = {}
-    path = os.path.join(SETTINGS['builds_directory'], project, branch, system, fsdate, 'metadata.bz2')
+    path = config.build_directory(project, branch, system, fsdate, 'metadata.bz2')
     if os.path.exists(path):
         try:
             bz2data = bz2.BZ2File(path).read()
@@ -546,15 +478,15 @@ def metadata_for_build(project, branch, system, fsdate):
 
 def icon_for_system(system):
     '''get link to icon for system'''
-    icon = 'platform/unknown.png'
+    icon = 'platform/unknown.svg'
     if 'linux' in system.lower():
-        icon = '/platform/linux.png'
+        icon = '/platform/linux.svg'
     if 'darwin' in system.lower():
-        icon = '/platform/darwin.png'
+        icon = '/platform/darwin.svg'
     if 'win32' in system.lower() or 'win64' in system.lower():
-        icon = '/platform/windows.png'
+        icon = '/platform/windows.svg'
     if 'bsd' in system.lower():
-        icon = '/platform/bsd.png'
+        icon = '/platform/bsd.svg'
     return icon
 
 def get_build_data(project, branch, system, fsdate, get_history=True, in_metadata=None):
@@ -568,10 +500,10 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
     else:
         metadata = metadata_for_build(project, branch, system, fsdate)
     if not metadata:
-        return None
+        return
     date = date_for_metadata(metadata)
     if not date:
-        return None
+        return
 
     for key in STUSKEYS:
         if key not in metadata:
@@ -591,7 +523,7 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
     if get_history:
         metadata['history'] = []
-        systempath = os.path.join(SETTINGS['builds_directory'], project, branch, system)
+        systempath =config.build_directory(project, branch, system)
         current = os.readlink(os.path.join(systempath, 'current'))
         for old_fsdate in sorted(os.listdir(systempath), reverse=True):
             if old_fsdate == fsdate or old_fsdate == current or old_fsdate == 'current':
@@ -605,13 +537,11 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
 def get_projects():
     '''get projects for index page'''
-    if not os.path.isdir(SETTINGS['builds_directory']):
-        return []
-
     projects = []
-    for project in os.listdir(SETTINGS['builds_directory']):
+    #FIXME: use os.walk, silly pants
+    for project in os.listdir(config.build_directory()):
         projects.append({'name': project, 'url': None, 'date': None, 'builds': []})
-        projectpath = os.path.join(SETTINGS['builds_directory'], project)
+        projectpath = config.build_directory(project)
         for branch in os.listdir(projectpath):
             branchpath = os.path.join(projectpath, branch)
             for system in os.listdir(branchpath):
@@ -664,7 +594,7 @@ def system_page(project=None, branch=None, system=None):
     if is_json_request():
         return dump_json(clean_build_json(data))
     admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
-    return template('build', admin=admin, build=data, standalone=True)
+    return template('build', admin=admin, build=data, standalone=True, template_lookup=rootpath('views'))
 
 @route('/')
 def index():
@@ -682,37 +612,14 @@ def index():
 @route('/favicon.ico')
 def get_favicon():
     '''fetch favicon'''
-    return static_file('favicon.ico', root='.')
-
-def main():
-    '''main method'''
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option('-s', '--server', dest='server',
-                      help='bottle.py WSGI server backend')
-    parser.add_option('-p', '--port', dest='port',
-                      help='server port')
-    parser.add_option('-b', '--buildsdir', dest='builds_directory',
-                      help='directory for builds')
-    optargs = parser.parse_args()
-
-    for key in SETTINGS.keys():
-        if optargs[0].__dict__.get(key):
-            SETTINGS[key] = optargs[0].__dict__[key]
-
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    run(server=SETTINGS['server'], host='0.0.0.0', port=SETTINGS['port'])
+    return static_file('favicon.ico', root=rootpath('media'))
 
 def setup():
     '''setup method'''
     BaseTemplate.defaults['STUSKEYS'] = STUSKEYS
 
 setup()
-if __name__ == "__main__":
-    main()
-else:
-    # pylint: disable=invalid-name
-    application = bottle.default_app()
-    application.catchall = False
+application = bottle.default_app()
+application.catchall = False
 
 #  vim: set ts=8 sw=4 tw=0 :
