@@ -594,7 +594,7 @@ def system_page(project=None, branch=None, system=None):
     if is_json_request():
         return dump_json(clean_build_json(data))
     admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
-    return template('build', admin=admin, build=data, standalone=True, template_lookup=rootpath('views'))
+    return template('build', admin=admin, build=data, standalone=True)
 
 @route('/')
 def index():
