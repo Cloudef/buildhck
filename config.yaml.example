@@ -20,5 +20,8 @@
 # Bottle.py WSGI backend
 #server: 'auto'
 
-# Server port
+# Bottle.py server port
 #port: 9001
+
+# client server url
+#serverurl: http://localhost:9001

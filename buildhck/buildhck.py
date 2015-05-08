@@ -9,7 +9,7 @@ from buildhck import config
 from base64 import b64decode
 from datetime import datetime
 from urllib.parse import quote
-import os, re, bz2, json
+import os, re, bz2, json, shutil
 
 bottle.BaseRequest.MEMFILE_MAX = 4096 * 1024
 
@@ -82,13 +82,6 @@ def is_authenticated_for_project(project):
         return True
 
     return False
-
-def s_mkdir(sdir):
-    '''safe mkdir'''
-    if not os.path.exists(sdir):
-        os.mkdir(sdir)
-    if not os.path.isdir(sdir):
-        raise IOError("local path '{}' is not a directory".format(sdir))
 
 def github_issue(user, repo, subject, body, issueid=None, close=False):
     '''create/comment/delete github issue'''
@@ -183,34 +176,20 @@ def check_github_posthook(data, metadata):
                           'issueid': issueid}
     return True
 
-def build_exists(project, branch=None, system=None, fsdate=None):
+def build_exists(project, branch='', system='', fsdate=''):
     '''check if build dir exists'''
     validate_build(project, branch, system)
-    buildpath = os.path.join(config.config['builds_directory'], project)
-    if branch:
-        buildpath = os.path.join(buildpath, branch)
-    if system:
-        buildpath = os.path.join(buildpath, system)
-    if fsdate:
-        buildpath = os.path.join(buildpath, fsdate)
+    buildpath = config.build_directory(project, branch, system, fsdate)
     return os.path.exists(buildpath)
 
-def delete_build(project, branch=None, system=None, fsdate=None):
+def delete_build(project, branch='', system='', fsdate=''):
     '''delete build'''
     # pylint: disable=too-many-branches
 
     validate_build(project, branch, system)
 
-    parentpath = None
-    buildpath = os.path.join(config.config['builds_directory'], project)
-    if branch:
-        parentpath = buildpath
-        buildpath = os.path.join(buildpath, branch)
-    if system:
-        parentpath = buildpath
-        buildpath = os.path.join(buildpath, system)
+    buildpath = config.build_directory(project, branch, system)
     if fsdate:
-        parentpath = buildpath
         currentpath = os.path.join(buildpath, 'current')
         if fsdate == 'current':
             if os.path.lexists(currentpath):
@@ -218,10 +197,9 @@ def delete_build(project, branch=None, system=None, fsdate=None):
             else:
                 abort(404, 'Current build does not exist')
         buildpath = os.path.join(buildpath, fsdate)
+    parentpath, _ = os.path.split(buildpath)
     if not os.path.isdir(buildpath):
         return False
-
-    import shutil
     shutil.rmtree(buildpath)
 
     if fsdate and os.path.lexists(currentpath):
@@ -233,12 +211,11 @@ def delete_build(project, branch=None, system=None, fsdate=None):
             if latest != 'current':
                 os.symlink(latest, currentpath)
 
-    if fsdate and not os.listdir(parentpath):
-        delete_build(project, branch, system)
-    if system and not fsdate and not os.listdir(parentpath):
-        delete_build(project, branch)
-    if branch and not system and not os.listdir(parentpath):
-        delete_build(project)
+    while parentpath != config.build_directory():
+        if os.path.isdir(parentpath) and not os.listdir(parentpath):
+            os.rmdir(parentpath)
+        parentpath, _ = os.path.split(parentpath)
+
     return True
 
 def save_build(project, branch, system, data):
@@ -257,16 +234,13 @@ def save_build(project, branch, system, data):
 
     date = datetime.utcnow()
     fsdate = date.strftime("%Y%m%d%H%M%S")
-    s_mkdir(config.config['builds_directory'])
-    buildpath = os.path.join(config.config['builds_directory'], project)
-    s_mkdir(buildpath)
-    buildpath = os.path.join(buildpath, branch)
-    s_mkdir(buildpath)
-    buildpath = os.path.join(buildpath, system)
-    s_mkdir(buildpath)
+    buildpath = config.build_directory(project, branch, system)
+    if not os.path.isdir(buildpath):
+        os.makedirs(buildpath)
     currentpath = os.path.join(buildpath, 'current')
     buildpath = os.path.join(buildpath, fsdate)
-    s_mkdir(buildpath)
+    if not os.path.isdir(buildpath):
+        os.makedirs(buildpath)
 
     metadata['date'] = date.isoformat()
     metadata['client'] = data['client']
@@ -366,40 +340,18 @@ def got_build(project=None, branch=None, system=None):
     save_build(project, branch, system, data)
     return 'OK!'
 
+#FIXME: separate views
+
 @route('/build/<project>', ['DELETE'])
-def delete_project(project=None):
-    '''got project delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project):
-        abort(400, 'Project does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>', ['DELETE'])
-def delete_branch(project=None, branch=None):
-    '''got branch delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project, branch):
-        abort(400, 'Branch does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>/<system>', ['DELETE'])
-def delete_system(project=None, branch=None, system=None):
-    '''got branch delete request from client'''
-    if not is_authenticated_for_project(project):
-        abort(401, 'Not authorized.')
-    if not delete_build(project, branch, system):
-        abort(400, 'System does not exist.')
-    return 'OK!'
-
 @route('/build/<project>/<branch>/<system>/<fsdate>', ['DELETE'])
-def delete_fsdate(project=None, branch=None, system=None, fsdate=None):
-    '''got branch delete request from client'''
+def delete_build_view(project, **kwargs):
+    '''got build delete request from client'''
     if not is_authenticated_for_project(project):
         abort(401, 'Not authorized.')
-    if not delete_build(project, branch, system, fsdate):
-        abort(400, 'System does not exist.')
+    if not delete_build(project, **kwargs):
+        abort(400, 'Build does not exist.')
     return 'OK!'
 
 @route('/build/<project>/<branch>/<system>/<fsdate>/<bfile>')
@@ -408,10 +360,7 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
     validate_build(project, branch, system)
 
     ext = os.path.splitext(bfile)[1]
-    path = os.path.join(config.config['builds_directory'], project)
-    path = os.path.join(path, branch)
-    path = os.path.join(path, system)
-    path = os.path.join(path, fsdate)
+    path = config.build_directory(project, branch, system, fsdate)
 
     if not os.path.exists(path):
         abort(404, "Build does not exist.")
@@ -495,7 +444,7 @@ def fsdate_for_build(project, branch, system, fsdate):
 
 def parse_links_for_build(project, branch, system, fsdate, metadata):
     '''get status links array for build'''
-    systempath = os.path.join(config.config['builds_directory'], project, branch, system, fsdate)
+    systempath = config.build_directory(project, branch, system, fsdate)
 
     for key in STUSKEYS:
         if os.path.exists(os.path.join(systempath, '{}-log.bz2'.format(key))):
@@ -511,7 +460,7 @@ def status_image_link_for_build(project, branch, system, fsdate):
 def metadata_for_build(project, branch, system, fsdate):
     '''get metadata for build'''
     metadata = {}
-    path = os.path.join(config.config['builds_directory'], project, branch, system, fsdate, 'metadata.bz2')
+    path = config.build_directory(project, branch, system, fsdate, 'metadata.bz2')
     if os.path.exists(path):
         try:
             bz2data = bz2.BZ2File(path).read()
@@ -568,7 +517,7 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
     if get_history:
         metadata['history'] = []
-        systempath = os.path.join(config.config['builds_directory'], project, branch, system)
+        systempath =config.build_directory(project, branch, system)
         current = os.readlink(os.path.join(systempath, 'current'))
         for old_fsdate in sorted(os.listdir(systempath), reverse=True):
             if old_fsdate == fsdate or old_fsdate == current or old_fsdate == 'current':
@@ -582,13 +531,11 @@ def get_build_data(project, branch, system, fsdate, get_history=True, in_metadat
 
 def get_projects():
     '''get projects for index page'''
-    if not os.path.isdir(config.config['builds_directory']):
-        return []
-
     projects = []
-    for project in os.listdir(config.config['builds_directory']):
+    #FIXME: use os.walk, silly pants
+    for project in os.listdir(config.build_directory()):
         projects.append({'name': project, 'url': None, 'date': None, 'builds': []})
-        projectpath = os.path.join(config.config['builds_directory'], project)
+        projectpath = config.build_directory(project)
         for branch in os.listdir(projectpath):
             branchpath = os.path.join(projectpath, branch)
             for system in os.listdir(branchpath):

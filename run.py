@@ -15,9 +15,9 @@ def main():
                       help='server port')
     parser.add_option('-b', '--buildsdir', dest='builds_directory',
                       help='directory for builds')
-    optargs = parser.parse_args()[0]
+    args = parser.parse_args()[0]
 
-    config.config.update({k:v for k,v in vars(optargs).items() if v})
+    config.config.update({k:v for k,v in vars(args).items() if v})
 
     chdir(path.dirname(path.abspath(buildhck.__file__)))
     run(**config.config)

@@ -1,12 +1,17 @@
 # pylint: disable=C0301, R0904, R0201, W0212
 """unittests for buildhck"""
 
-import os, sys, time, json, unittest, subprocess, signal, shutil
+import os, sys, time, json, unittest, shutil
+from os import path
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from base64 import b64encode
 import random
+from multiprocessing import Process
+
+from buildhck import buildhck, config
+from bottle import run
 
 # FIXME: need to check return status
 def get_file(relative):
@@ -64,11 +69,11 @@ class TestIndexFunctions(unittest.TestCase):
 
     def test_platform_icons(self):
         """platform icons"""
-        assert get_file('platform/unknown.png')
-        assert get_file('platform/linux.png')
-        assert get_file('platform/darwin.png')
-        assert get_file('platform/windows.png')
-        assert get_file('platform/bsd.png')
+        assert get_file('platform/unknown.svg')
+        assert get_file('platform/linux.svg')
+        assert get_file('platform/darwin.svg')
+        assert get_file('platform/windows.svg')
+        assert get_file('platform/bsd.svg')
 
 class TestBuildFunctions(unittest.TestCase):
     """build test routine"""
@@ -111,7 +116,7 @@ class TestBuildFunctions(unittest.TestCase):
         assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.txt')
         assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.bz2')
         assert not get_build_file('unittest', 'unittest', 'unittest', 'package.zip')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'build-status.png')
+        assert not get_build_file('unittest', 'unittest', 'unittest', 'build-status.svg')
 
         assert send_build({'client': 'unittest', 'build': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}, 'test': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}}, 'unittest', 'unittest', 'unittest')
 
@@ -119,11 +124,15 @@ class TestBuildFunctions(unittest.TestCase):
         assert get_build_file('unittest', 'unittest', 'unittest', 'build-log.bz2')
         assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.txt')
         assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.bz2')
-        assert get_build_file('unittest', 'unittest', 'unittest', 'build-status.png')
+        assert get_build_file('unittest', 'unittest', 'unittest', 'status.svg')
 
     def teardown_method(self, method):
         """cleanup test"""
         delete_build('unittest') # don't care about return
+
+def stupid(port):
+    os.chdir(path.dirname(path.abspath(buildhck.__file__)))
+    run(port=port)
 
 def setup_module(module):
     STARTDIR = os.path.dirname(os.path.abspath(__file__))
@@ -132,20 +141,17 @@ def setup_module(module):
     # FIXME: terrible hack
     port = random.randint(49152, 65535)
     module.SERVER = 'http://localhost:{}'.format(port)
-    module.__testdir = '/tmp/buildhck_{}'.format(port)
-    module.__p = subprocess.Popen(['python3', '-m', 'buildhck.buildhck', '-b', module.__testdir, '-p', str(port)])
+    module.__p = Process(target=stupid, args=(port,))
+    module.__p.start()
     for _ in range(30):
-        if module.__p.poll():
-            raise ChildProcessError('buildhck terminated prematurely')
-        if get_file(''):
-            break
-        time.sleep(1)
+        if module.__p.is_alive() and get_file(''):
+           break
+        time.sleep(0.25)
     else:
         raise TimeoutError('failed to start buildhck')
 
 def teardown_module(module):
-    module.__p.send_signal(signal.SIGINT)
-    module.__p.communicate()
-    shutil.rmtree(module.__testdir)
+    module.__p.terminate()
+    module.__p.join()
 
 #  vim: set ts=8 sw=4 tw=0 :
