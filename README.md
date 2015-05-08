@@ -1,19 +1,19 @@
 # Buildhck
-[![buildhck status](http://cloudef.eu:9001/build/buildhck/master/linux%20x86_64/build-status.png)](#)
+[![buildhck status](http://build.cloudef.pw/build/buildhck/master/linux%20x86_64/current/status.svg)](#)
 
 Micro build automation client/server framework
 
 ## Running tests
 
-    ./test.py
+    tox
 
 ## Installing
 
 Since this is a WSGI application, there is no standard install prodecure.
-You may run the buildhck.py standalone, or install wsgi application container such as uwsig to be used with web server such as nginx (recommended)
+You may run the `run.py` standalone, or install wsgi application container such as uwsig to be used with web server such as nginx (recommended)
 
 If running standalone, the default bottle.py WSGI backend is used which most likely will be slow.
-You can use -s argument or server key on authorization.py to change this to something like cherrypy for example.
+You can use -s argument or server key in `config.yaml` to change this to something like cherrypy for example.
 (See bottle.py documentation for more information)
 
 If running standalone, it is good idea to isolate the process into its own user/group, maybe even write a systemd service or init script.
