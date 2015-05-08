@@ -4,8 +4,7 @@
 name = 'buildhck'
 upstream = 'https://github.com/Cloudef/buildhck'
 source = 'git+git://github.com/Cloudef/buildhck.git#branch=master'
-build = ['python3 -m py_compile "$srcdir/buildhck/buildhck.py"',
-         'python3 -m py_compile "$srcdir/buildhck/client/client.py"']
+build = ['python3 $srcdir/setup.py build']
 test = ['tox -c $srcdir/tox.ini']
 analyze = ['pylint "$srcdir/buildhck/buildhck.py" "$srcdir/buildhck/client/client.py"']
 package = ['python3 $srcdir/setup.py install --root="$pkgdir/"']
