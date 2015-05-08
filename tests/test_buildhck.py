@@ -1,157 +1,58 @@
 # pylint: disable=C0301, R0904, R0201, W0212
-"""unittests for buildhck"""
 
-import os, sys, time, json, unittest, shutil
-from os import path
-from urllib.parse import quote
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
+from util import send_build, delete_build, get_build_file
 from base64 import b64encode
-import random
-from multiprocessing import Process
 
-from buildhck import buildhck, config
-from bottle import run
+def test_send():
+    """test build data send"""
+    assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert send_build({'force': True, 'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert not send_build({'client': 'unittest', 'build': {'status': 'notint'}, 'test': 0}, 'unittest', 'unittest', 'unittest')
+    assert not send_build({'client': 'unittest', 'build': {'status': 2}, 'test': {'status': 2}}, 'unittest', 'unittest', 'unittest')
+    assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, '/;:#%-\\', 'unittest', 'unittest')
+    assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', '/;:#%-\\', 'unittest')
+    assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', '/;:#%-\\')
 
-# FIXME: need to check return status
-def get_file(relative):
-    """get file from server"""
-    request = Request('{}/{}'.format(SERVER, quote(relative)))
-    try:
-        return urlopen(request)
-    except (HTTPError, URLError):
-        pass
+def test_delete():
+    """test build deletion"""
+    assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert delete_build('unittest')
 
-def send_build(data, project, branch, system):
-    """send build to server and return response"""
-    request = Request('{}/build/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system)))
-    request.add_header('Content-Type', 'application/json')
-    try:
-        return urlopen(request, json.dumps(data).encode('UTF-8'))
-    except (HTTPError, URLError):
-        pass
+    assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert delete_build('unittest', 'unittest')
 
-def delete_build(project, branch=None, system=None, fsdate=None):
-    """delete build from server"""
-    request = None
-    if not branch and not system:
-        request = Request('{}/build/{}'.format(SERVER, quote(project)))
-    elif branch and not system:
-        request = Request('{}/build/{}/{}'.format(SERVER, quote(project), quote(branch)))
-    elif branch and system and not fsdate:
-        request = Request('{}/build/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system)))
-    else:
-        request = Request('{}/build/{}/{}/{}/{}'.format(SERVER, quote(project), quote(branch), quote(system), quote(fsdate)))
-    request.get_method = lambda: 'DELETE'
-    try:
-        return urlopen(request)
-    except (HTTPError, URLError):
-        pass
+    assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert delete_build('unittest', 'unittest', 'unittest')
 
-def get_build_file(project, branch, system, bfile):
-    """get file for build"""
-    request = Request('{}/build/{}/{}/{}/current/{}'.format(SERVER, quote(project), quote(branch), quote(system), quote(bfile)))
-    try:
-        return urlopen(request)
-    except (HTTPError, URLError):
-        pass
+    assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
+    assert delete_build('unittest', 'unittest', 'unittest', 'current')
 
-class TestIndexFunctions(unittest.TestCase):
-    """index test routine"""
+    assert not delete_build('unittest', 'unittest', 'unittest', 'current')
+    assert not delete_build('unittest', 'unittest', 'unittest')
+    assert not delete_build('unittest', 'unittest')
+    assert not delete_build('unittest')
 
-    def test_index(self):
-        """index page"""
-        assert get_file('')
+def test_build_files():
+    """test build related file access"""
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'build-log.txt')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'build-log.bz2')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'test-log.txt')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'test-log.bz2')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.txt')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.bz2')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'package.zip')
+    assert not get_build_file('unittest', 'unittest', 'unittest', 'build-status.svg')
 
-    def test_favicon(self):
-        """favicon"""
-        assert get_file('favicon.ico')
+    assert send_build({'client': 'unittest', 'build': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}, 'test': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}}, 'unittest', 'unittest', 'unittest')
 
-    def test_platform_icons(self):
-        """platform icons"""
-        assert get_file('platform/unknown.svg')
-        assert get_file('platform/linux.svg')
-        assert get_file('platform/darwin.svg')
-        assert get_file('platform/windows.svg')
-        assert get_file('platform/bsd.svg')
+    assert get_build_file('unittest', 'unittest', 'unittest', 'build-log.txt')
+    assert get_build_file('unittest', 'unittest', 'unittest', 'build-log.bz2')
+    assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.txt')
+    assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.bz2')
+    assert get_build_file('unittest', 'unittest', 'unittest', 'status.svg')
 
-class TestBuildFunctions(unittest.TestCase):
-    """build test routine"""
-
-    def test_send(self):
-        """test build data send"""
-        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert send_build({'force': True, 'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert not send_build({'client': 'unittest', 'build': {'status': 'notint'}, 'test': 0}, 'unittest', 'unittest', 'unittest')
-        assert not send_build({'client': 'unittest', 'build': {'status': 2}, 'test': {'status': 2}}, 'unittest', 'unittest', 'unittest')
-        assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, '/;:#%-\\', 'unittest', 'unittest')
-        assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', '/;:#%-\\', 'unittest')
-        assert not send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', '/;:#%-\\')
-
-    def test_delete(self):
-        """test build deletion"""
-        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert delete_build('unittest')
-
-        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert delete_build('unittest', 'unittest')
-
-        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert delete_build('unittest', 'unittest', 'unittest')
-
-        assert send_build({'client': 'unittest', 'build': {'status': 1}, 'test': {'status': 1}}, 'unittest', 'unittest', 'unittest')
-        assert delete_build('unittest', 'unittest', 'unittest', 'current')
-
-        assert not delete_build('unittest', 'unittest', 'unittest', 'current')
-        assert not delete_build('unittest', 'unittest', 'unittest')
-        assert not delete_build('unittest', 'unittest')
-        assert not delete_build('unittest')
-
-    def test_build_files(self):
-        """test build related file access"""
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'build-log.txt')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'build-log.bz2')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'test-log.txt')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'test-log.bz2')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.txt')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'package-log.bz2')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'package.zip')
-        assert not get_build_file('unittest', 'unittest', 'unittest', 'build-status.svg')
-
-        assert send_build({'client': 'unittest', 'build': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}, 'test': {'status': 1, 'log': b64encode(b'hello world').decode('UTF-8')}}, 'unittest', 'unittest', 'unittest')
-
-        assert get_build_file('unittest', 'unittest', 'unittest', 'build-log.txt')
-        assert get_build_file('unittest', 'unittest', 'unittest', 'build-log.bz2')
-        assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.txt')
-        assert get_build_file('unittest', 'unittest', 'unittest', 'test-log.bz2')
-        assert get_build_file('unittest', 'unittest', 'unittest', 'status.svg')
-
-    def teardown_method(self, method):
-        """cleanup test"""
-        delete_build('unittest') # don't care about return
-
-def stupid(port):
-    os.chdir(path.dirname(path.abspath(buildhck.__file__)))
-    run(port=port)
-
-def setup_module(module):
-    STARTDIR = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(STARTDIR)
-
-    # FIXME: terrible hack
-    port = random.randint(49152, 65535)
-    module.SERVER = 'http://localhost:{}'.format(port)
-    module.__p = Process(target=stupid, args=(port,))
-    module.__p.start()
-    for _ in range(30):
-        if module.__p.is_alive() and get_file(''):
-           break
-        time.sleep(0.25)
-    else:
-        raise TimeoutError('failed to start buildhck')
-
-def teardown_module(module):
-    module.__p.terminate()
-    module.__p.join()
+def teardown_method(self, method):
+    """cleanup test"""
+    delete_build('unittest') # don't care about return
 
 #  vim: set ts=8 sw=4 tw=0 :
