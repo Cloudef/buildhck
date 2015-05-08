@@ -100,4 +100,4 @@ For authorization and other options, refer to authorization.def.py.
 
 ## License
 
-Not decided yet
+AGPLv3, see LICENSE file for more information
