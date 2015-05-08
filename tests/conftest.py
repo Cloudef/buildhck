@@ -11,19 +11,12 @@ from bottle import run
 import util
 from util import get_file
 
-def stupid(port):
-    chdir(path.dirname(path.abspath(buildhck.__file__)))
-    run(port=port)
-
 @fixture(scope="session", autouse=True)
 def buildhck_server(request):
-    STARTDIR = path.dirname(path.abspath(__file__))
-    chdir(STARTDIR)
-
     # FIXME: terrible hacks
     port = randint(49152, 65535)
     util.SERVER = 'http://localhost:{}'.format(port)
-    p = Process(target=stupid, args=(port,))
+    p = Process(target=run, kwargs={'port': port})
     p.start()
     for _ in range(30):
         if p.is_alive() and get_file(''):

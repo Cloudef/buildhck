@@ -2,7 +2,7 @@
 '''automatic build system client/server framework'''
 
 import bottle
-from bottle import BaseTemplate, template
+from bottle import BaseTemplate, template as _template
 from bottle import static_file, response, request, redirect, route, abort
 from buildhck.header import supported_request
 from buildhck import config
@@ -10,6 +10,7 @@ from base64 import b64decode
 from datetime import datetime
 from urllib.parse import quote
 import os, re, bz2, json, shutil
+from functools import partial
 
 bottle.BaseRequest.MEMFILE_MAX = 4096 * 1024
 
@@ -30,6 +31,11 @@ BUILDJSONMDL = {'upstream': '',
 FNFILTERPROG = re.compile(r'[:;*?"<>|()\\]')
 
 SCODEMAP = {-1: 'SKIP', 0: 'FAIL', 1: 'OK'}
+
+def rootpath(*args):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), *args)
+
+template = partial(_template, template_lookup=(rootpath('views'),))
 
 def is_json_request():
     '''check if the request is json'''
@@ -369,15 +375,15 @@ def get_build_file(project=None, branch=None, system=None, fsdate=None, bfile=No
         response.set_header('Cache-control', 'no-cache')
         response.set_header('Pragma', 'no-cache')
         if not failure_for_build(project, branch, system, fsdate):
-            return static_file('ok.svg', root='media/status/')
-        return static_file('fail.svg', root='media/status/')
+            return static_file('ok.svg', root=rootpath('media', 'status'))
+        return static_file('fail.svg', root=rootpath('media', 'status'))
     elif ext == '.zip':
-        return static_file(bfile, root=path)
+        return static_file(bfile, root=rootpath(path))
     elif ext == '.bz2':
-        return static_file(bfile, root=path)
+        return static_file(bfile, root=rootpath(path))
     elif ext == '.txt':
         response.content_type = 'text/plain'
-        path = os.path.join(path, bfile.replace('.txt', '.bz2'))
+        path = rootpath(path, bfile.replace('.txt', '.bz2'))
         if os.path.exists(path):
             return bz2.BZ2File(path).read()
 
@@ -391,7 +397,7 @@ def get_build_file_short(project=None, branch=None, system=None, bfile=None):
 @route('/platform/<bfile>')
 def get_platform_icon(bfile=None):
     '''get platform icon'''
-    return static_file(bfile, root='media/platform/')
+    return static_file(bfile, root=rootpath('media', 'platform'))
 
 def absolute_link(relative, https=False):
     '''turn relative link to absolute'''
@@ -588,7 +594,7 @@ def system_page(project=None, branch=None, system=None):
     if is_json_request():
         return dump_json(clean_build_json(data))
     admin = True if request.environ.get('REMOTE_ADDR') == '127.0.0.1' else False
-    return template('build', admin=admin, build=data, standalone=True)
+    return template('build', admin=admin, build=data, standalone=True, template_lookup=rootpath('views'))
 
 @route('/')
 def index():
@@ -606,15 +612,13 @@ def index():
 @route('/favicon.ico')
 def get_favicon():
     '''fetch favicon'''
-    return static_file('favicon.ico', root='media/')
+    return static_file('favicon.ico', root=rootpath('media'))
 
 def setup():
     '''setup method'''
     BaseTemplate.defaults['STUSKEYS'] = STUSKEYS
 
 setup()
-
-# pylint: disable=invalid-name
 application = bottle.default_app()
 application.catchall = False
 

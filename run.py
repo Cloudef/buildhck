@@ -19,7 +19,6 @@ def main():
 
     config.config.update({k:v for k,v in vars(args).items() if v})
 
-    chdir(path.dirname(path.abspath(buildhck.__file__)))
     run(**config.config)
 
 if __name__ == "__main__":
