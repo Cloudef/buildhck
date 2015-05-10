@@ -4,6 +4,7 @@
 import os
 import json
 import shlex
+import yaml
 from base64 import b64encode
 from importlib import import_module
 
@@ -88,31 +89,31 @@ def run_cmd_list_catch_output(cmd_list, result, expand, throw_on_fail=True):
 
 def prepare(recipe, srcdir, result):
     '''prepare project'''
-    return run_cmd_list_catch_output(recipe.prepare, result, {'$srcdir': srcdir})
+    return run_cmd_list_catch_output(recipe['prepare'], result, {'$srcdir': srcdir})
 
 
 def build(recipe, srcdir, builddir, pkgdir, result):
     '''build project'''
-    return run_cmd_list_catch_output(recipe.build, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
+    return run_cmd_list_catch_output(recipe['build'], result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 
 def test(recipe, srcdir, builddir, result):
     '''test project'''
-    return run_cmd_list_catch_output(recipe.test, result, {'$srcdir': srcdir, '$builddir': builddir})
+    return run_cmd_list_catch_output(recipe['test'], result, {'$srcdir': srcdir, '$builddir': builddir})
 
 
 def package(recipe, srcdir, builddir, pkgdir, result):
     '''package project'''
-    return run_cmd_list_catch_output(recipe.package, result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
+    return run_cmd_list_catch_output(recipe['package'], result, {'$srcdir': srcdir, '$builddir': builddir, '$pkgdir': pkgdir})
 
 
 def analyze(recipe, srcdir, builddir, result):
     '''analyze project'''
-    output = run_cmd_list_catch_output(recipe.analyze, result, {'$srcdir': srcdir, '$builddir': builddir}, False)
+    output = run_cmd_list_catch_output(recipe['analyze'], result, {'$srcdir': srcdir, '$builddir': builddir}, False)
 
-    if 'analyze_re' in recipe.__dict__:
+    if 'analyze_re' in recipe:
         import re
-        exp = re.compile(recipe.analyze_re)
+        exp = re.compile(recipe['analyze_re'])
         matches = 0
         for line in output:
             matches += len(exp.findall(line.decode('UTF-8')))
@@ -128,15 +129,15 @@ def download(recipe, srcdir, result):
     proto = ''
     fragment = ''
     branch = ''
-    url = recipe.source
+    url = recipe['source']
 
-    split = recipe.source.split('+', 1)
+    split = recipe['source'].split('+', 1)
     if split:
         proto = split[0]
         url = split[1]
         split = split[1].rsplit('#', 1)
     else:
-        split = recipe.source.rsplit('#', 1)
+        split = recipe['source'].rsplit('#', 1)
 
     if len(split) > 1:
         url = split[0]
@@ -162,7 +163,7 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     s_mkdir(srcdir)
     download(recipe, srcdir, result)
 
-    if 'prepare' in recipe.__dict__:
+    if 'prepare' in recipe:
         os.chdir(srcdir)
         prepare(recipe, srcdir, result['build'])
 
@@ -170,19 +171,19 @@ def perform_recipe(recipe, srcdir, builddir, pkgdir, result):
     os.chdir(builddir)
     build(recipe, srcdir, builddir, pkgdir, result['build'])
 
-    if 'test' in recipe.__dict__:
+    if 'test' in recipe:
         test(recipe, srcdir, builddir, result['test'])
     else:
         result['test']['status'] = -1
 
-    if 'package' in recipe.__dict__:
+    if 'package' in recipe:
         s_mkdir(pkgdir)
         os.chdir(builddir)
         package(recipe, srcdir, builddir, pkgdir, result['package'])
     else:
         result['package']['status'] = -1
 
-    if 'analyze' in recipe.__dict__:
+    if 'analyze' in recipe:
         analyze(recipe, srcdir, builddir, result['analyze'])
     else:
         result['analyze']['status'] = -1
@@ -204,7 +205,7 @@ def upload_build(recipe, result, srcdir):
     except ImportError:
         raise Exception('TODO')
 
-    for name in [recipe.name, '']:
+    for name in [recipe['name'], '']:
         if name in config.config['auth']:
             key = config.config['auth'][name]
             break
@@ -222,20 +223,20 @@ def cook_recipe(recipe):
     '''prepare && cook recipe'''
     # pylint: disable=too-many-branches
 
-    logging.info('Building %s from %s', recipe.name, recipe.source)
-    logging.debug(recipe.build)
-    if 'test' in recipe.__dict__:
-        logging.debug(recipe.test)
-    if 'package' in recipe.__dict__:
-        logging.debug(recipe.package)
+    logging.info('Building %s from %s', recipe['name'], recipe['source'])
+    logging.debug(recipe['build'])
+    if 'test' in recipe:
+        logging.debug(recipe['test'])
+    if 'package' in recipe:
+        logging.debug(recipe['package'])
 
     os.chdir(STARTDIR)
-    projectdir = config.build_directory(recipe.name)
+    projectdir = config.build_directory(recipe['name'])
 
     pkgdir = os.path.join(projectdir, 'pkg')
     srcdir = os.path.join(projectdir, 'src')
 
-    if 'build_in_srcdir' in recipe.__dict__ and recipe.build_in_srcdir:
+    if 'build_in_srcdir' in recipe and recipe['build_in_srcdir']:
         builddir = srcdir
     else:
         builddir = os.path.join(projectdir, 'build')
@@ -252,23 +253,23 @@ def cook_recipe(recipe):
         if os.path.exists(os.path.join(srcdir, '.buildhck_built')):
             os.remove(os.path.join(srcdir, '.buildhck_built'))
 
-    if 'upstream' in recipe.__dict__ and recipe.upstream:
-        result['upstream'] = recipe.upstream
+    if 'upstream' in recipe and recipe['upstream']:
+        result['upstream'] = recipe['upstream']
 
-    if 'github' in recipe.__dict__ and recipe.github:
-        result['github'] = recipe.github
+    if 'github' in recipe and recipe['github']:
+        result['github'] = recipe['github']
 
     s_mkdir(projectdir)
     send_build = True
     try:
         perform_recipe(recipe, srcdir, builddir, pkgdir, result)
     except CookException as exc:
-        logging.error('%s build failed :: %s', recipe.name, str(exc))
+        logging.error('%s build failed :: %s', recipe['name'], str(exc))
     except RecipeException as exc:
-        logging.error('%s recipe error :: %s', recipe.name, str(exc))
+        logging.error('%s recipe error :: %s', recipe['name'], str(exc))
         send_build = False
     except DownloadException as exc:
-        logging.error('%s download failed :: %s', recipe.name, str(exc))
+        logging.error('%s download failed :: %s', recipe['name'], str(exc))
         send_build = False
     except NothingToDoException:
         send_build = False
@@ -309,18 +310,13 @@ def main():
     # FIXME: hack
     global STARTDIR
     STARTDIR = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(STARTDIR)
 
     config.config.update({k:v for k,v in vars(args).items() if v})
+    recipe_file = config.config.get('recipe', 'recipe.yaml')
+    with open(recipe_file) as recipe_file:
+        recipe = yaml.load(recipe_file)
 
-    if config.config.get('recipe'):
-        modulebase = os.path.splitext("{}_recipe.py".format(config.config['recipe']))[0]
-        cook_recipe(getattr(__import__("buildhck.client.recipes", fromlist=[modulebase]), modulebase))
-    else:
-        for module in os.listdir('recipes'):
-            if module.find("_recipe.py") == -1:
-                continue
-            modulebase = os.path.splitext(module)[0]
-            cook_recipe(getattr(__import__("buildhck.client.recipes", fromlist=[modulebase]), modulebase))
+    os.chdir(STARTDIR)
+    cook_recipe(recipe)
 
 #  vim: set ts=8 sw=4 tw=0 :

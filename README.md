@@ -67,21 +67,22 @@ For authentication and other options, refer to authorization.def.py.
 ## Client usage
 
 You can use client.py provided by this repository, If you do not want to implement sending of builds yourself.
-When client.py is ran it will read the recipes directory in current directory.
+When client.py is ran it will read the provided recipe.
 
 The example recipe looks like this:
-```python
-# pylint: disable=C0103
-'''buildhck recipe for buildhck'''
-
-name = 'buildhck'
-upstream = 'https://github.com/Cloudef/buildhck'
-source = 'git+git://github.com/Cloudef/buildhck.git#branch=master'
-build = ['python3 -m py_compile "$srcdir/buildhck.py"',
-         'python3 -m py_compile "$srcdir/client/client.py"']
-test = ['python3 "$srcdir/test.py"']
-analyze = ['pylint "$srcdir/buildhck.py" "$srcdir/client/client.py"']
-analyze_re = '^W:'
+```yaml
+---
+name: buildhck
+upstream: https://github.com/Cloudef/buildhck
+source: git+git://github.com/Cloudef/buildhck.git#branch=master
+build:
+  - python3 -m py_compile "$srcdir/buildhck.py"
+  - python3 -m py_compile "$srcdir/client/client.py"
+test:
+  - python3 "$srcdir/test.py"
+analyze:
+  - pylint "$srcdir/buildhck.py" "$srcdir/client/client.py"
+analyze_re: '^W:'
 ```
 ```
 name = project name
