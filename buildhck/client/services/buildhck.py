@@ -15,7 +15,7 @@ def upload(recipe, result, server, key=None):
 
     # FIXME: use urljoin
     request = Request('{}/build/{}/{}/{}'.format(
-        server, quote(recipe.name), quote(branch),
+        server, quote(recipe['name']), quote(branch),
         quote('{} {}'.format(sys.platform, platform.machine()))))
 
     request.add_header('Content-Type', 'application/json')
